@@ -21,6 +21,7 @@ import AgentDock, { DOCK_AGENTS } from "./AgentDock";
 import AgentChatDrawer from "./AgentChatDrawer";
 import StoryBiblePanel from "./StoryBiblePanel";
 import PitchDeckPanel from "./PitchDeckPanel";
+import ExportModal from "./ExportModal";
 import { useToast } from "@/components/ui/Toast";
 import { useStoryRoom } from "@/hooks/useStoryRoom";
 import {
@@ -39,7 +40,6 @@ import {
   type StoryNodeType,
 } from "@/lib/canvas-types";
 import type { StoredEdge, StoredNode } from "@/liveblocks.config";
-import { compileScreenplay, downloadScreenplay } from "@/lib/screenplay";
 
 const nodeTypes = {
   plot_beat: StoryCardNode,
@@ -140,6 +140,7 @@ export default function WritersCanvas({ roomId = "demo-room" }: { roomId?: strin
   const [chatOpen, setChatOpen] = useState(false);
   const [bibleOpen, setBibleOpen] = useState(false);
   const [pitchOpen, setPitchOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const [storyFacts, setStoryFacts] = useState<StoryFact[]>([]);
 
   // Keep the latest graph in refs so streaming callbacks read fresh state.
@@ -348,16 +349,14 @@ export default function WritersCanvas({ roomId = "demo-room" }: { roomId?: strin
     }
   }, [premise, seeding, roomId, resetDock, resetRoom, toast]);
 
-  /** Compile + download the screenplay (Director's Cut). */
+  /** Open the Director's Cut export modal. */
   const directorsCut = useCallback(() => {
     if (nodes.length === 0) {
       toast("Nothing to compile yet — add some beats first.", "info");
       return;
     }
-    const fountain = compileScreenplay(nodes, edges, "The Writers' Room Draft");
-    downloadScreenplay(fountain, "writers-room-draft.fountain");
-    toast("Screenplay compiled — check your downloads.", "success");
-  }, [nodes, edges, toast]);
+    setExportOpen(true);
+  }, [nodes.length, toast]);
 
   // Inject per-node callbacks without recreating node identity needlessly.
   const nodesWithCallbacks = useMemo(
@@ -597,6 +596,15 @@ export default function WritersCanvas({ roomId = "demo-room" }: { roomId?: strin
         nodes={serializeGraph().nodes}
         edges={serializeGraph().edges}
         storyFacts={storyFacts.map((f) => ({ category: f.category, content: f.content }))}
+      />
+
+      {/* Director's Cut export modal */}
+      <ExportModal
+        open={exportOpen}
+        onClose={() => setExportOpen(false)}
+        nodes={nodes}
+        edges={edges}
+        title="The Writers' Room Draft"
       />
     </div>
   );

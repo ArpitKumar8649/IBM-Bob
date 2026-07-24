@@ -1,95 +1,396 @@
-# 🎬 Writer's Room
-**The Intelligent Spatial Co-Worker for the Next Generation of Storytelling.**
+# 🎬 The Writers' Room
 
-## 1. Problem Statement
-The creative industry—comprising writers, showrunners, and narrative designers—has long been shackled by linear processes and fragmented toolsets. Storytelling is inherently non-linear, yet modern creative workflows force creators into restrictive, top-down document formats. When incorporating AI, the industry defaults to isolated "chat tools" (prompt-and-response interfaces) that fail to grasp the holistic context of a sprawling narrative universe. Creators don't need a smarter typewriter; they need a collaborative environment where characters, plotlines, and pacing can be visually mapped, dynamically interrogated, and iteratively refined in real-time.
+### An AI agent crew that debates, disagrees, and pitches your story — on a spatial canvas.
 
-## 2. Solution Description
-**Writer's Room** revolutionizes narrative development by transforming AI from a passive chat interface into an active, spatial co-worker. Built as an expansive, real-time visual canvas, Writer's Room allows creators to drag, drop, and connect narrative nodes—characters, story beats, dialogue snippets, and lore. 
+> **Built for the [IBM AI Builders Challenge — July 2026](https://www.ibm.com/) · Creative Industries track**
+> Powered by **IBM Granite** on **watsonx.ai**, built end-to-end with **IBM Bob**.
 
-Rather than simply generating text, Writer's Room interacts with your story spatially. Our orchestration of specialized AI agents continuously analyzes the relationships between nodes, identifying plot holes, suggesting character arcs, and drafting scenes contextually. It is a living, breathing writer's room where the AI participates in the creative process alongside you, seeing the big picture and helping you connect the dots in a multidimensional storytelling space.
+[![Live Demo](https://img.shields.io/badge/Live-Demo-rose?style=for-the-badge&color=F43F5E)](#)
+[![IBM Granite](https://img.shields.io/badge/IBM-Granite-0f62fe?style=for-the-badge)](https://www.ibm.com/granite)
+[![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](./LICENSE)
 
-## 3. Selected Challenge Theme: Creative Industries
-We proudly selected the **Creative Industries** theme for the IBM AI Builders July Challenge. Storytelling is the bedrock of entertainment, marketing, and media. By addressing the critical bottleneck in narrative production—the synthesis of complex, interconnected ideas—Writer's Room empowers creatives to scale their imaginations. It perfectly aligns with the challenge's goal to leverage AI to redefine creative workflows, offering a paradigm shift that elevates human creativity rather than replacing it.
+---
 
-## 4. AI Approach and Architecture
-Writer's Room employs a state-of-the-art hybrid architecture, marrying a high-performance interactive frontend with a sophisticated, agentic AI backend powered by IBM Watsonx.ai.
+## ✨ What is The Writers' Room?
 
-### The Stack
-*   **Frontend:** Next.js & React Flow
-*   **Backend:** FastAPI & Python
-*   **AI Orchestration:** LangGraph & IBM Watsonx.ai
-*   **Data Validation:** Pydantic
+Most AI writing tools are a chatbot that agrees with you. **The Writers' Room is a room full of specialists who don't.**
 
-### Architectural Flow & Agent Personas
-Our AI pipeline is orchestrated by **LangGraph**, allowing for complex, cyclical, and stateful interactions between our AI agents, all driven by the robust capabilities of **IBM Watsonx.ai**.
+You drop story beats onto an infinite spatial canvas. When you ask for the next beat, a crew of **seven AI agents** — an Architect, four specialist critics, a Devil's Advocate, and a Reviser — **debate your story in real time**, streaming their arguments live. The Architect drafts, the critics tear it apart (character, world, continuity, pacing), the Devil's Advocate renders a verdict, and the Reviser rewrites until the room approves. You stay in the director's chair — accepting, rejecting, and arguing back.
 
-1.  **The Spatial Interface (React Flow):** Creators interact with a 2D node-based canvas on the Next.js frontend. Every node (e.g., "Act 1, Scene 2", "Protagonist Motivation") and edge (the relationship between nodes) represents a state graph.
-2.  **State Synchronization (FastAPI):** Changes on the canvas are streamed via FastAPI to our backend state manager.
-3.  **Agentic Routing (Pydantic & LangGraph):** The current narrative graph state is parsed and validated using Pydantic structured outputs, ensuring deterministic data flow. LangGraph then routes the context to our specialized trio of AI personas:
-    *   **The Brainstormer:** Analyzes isolated nodes and suggests lateral creative expansions (e.g., "What if this character has a hidden motive?").
-    *   **The Drafter:** Takes connected structural nodes and synthesizes them into formatted scene drafts or dialogue blocks.
-    *   **The Critic:** Reviews the generated content against the global canvas context, specifically looking for continuity errors, pacing issues, and character voice inconsistencies.
-4.  **Feedback Loop:** The agents' outputs are serialized and pushed back to the React Flow canvas as new, proposed nodes or actionable insights, completing the spatial collaboration loop.
+Every agent is grounded in your **Story Bible** — a persistent, vector-searchable knowledge base of your characters, locations, lore, and rules — so the world stays consistent no matter how far the story grows.
 
-```text
-[ React Flow Canvas (Next.js) ] <---> [ FastAPI Server ]
-                                            |
-                                            v
-                                  [ LangGraph Orchestrator ]
-                                  /           |            \
-                                 v            v             v
-                      [ Brainstormer ]   [ Drafter ]    [ Critic ]
-                                 \            |            /
-                                  \---> [ IBM Watsonx.ai ] 
+---
+
+## 📋 Table of Contents
+
+- [Problem Statement](#-problem-statement)
+- [Solution](#-solution)
+- [Key Features](#-key-features)
+- [AI Approach & Architecture](#-ai-approach--architecture)
+- [Challenge Theme Alignment](#-challenge-theme-alignment)
+- [How IBM Bob Was Used](#-how-ibm-bob-was-used)
+- [Tech Stack](#-tech-stack)
+- [Getting Started](#-getting-started)
+- [Environment Variables](#-environment-variables)
+- [API Reference](#-api-reference)
+- [Project Structure](#-project-structure)
+- [Roadmap](#-roadmap)
+- [Team](#-team)
+
+---
+
+## 🎯 Problem Statement
+
+Creative work is constrained by four forces the challenge brief names directly:
+
+1. **Time-consuming production workflows** — turning an idea into a finished script takes weeks of drafting and revision.
+2. **Technical complexity** — screenplay formatting, structure, and continuity are specialized skills with a steep learning curve.
+3. **Limited access to advanced tools** — professional writers' rooms and script coverage are expensive and gatekept.
+4. **The imagination-to-execution gap** — most creators have more ideas than they can finish.
+
+Generic AI chatbots make this *worse*, not better: they agree with everything, forget your story's own rules, produce cliché on demand, and give you a wall of text with no structure. They are **content generators**, not **creative partners**.
+
+---
+
+## 💡 Solution
+
+The Writers' Room replaces the yes-man chatbot with a **structured creative collaboration** that mirrors how real stories are developed:
+
+- **A spatial canvas** instead of a document — your story is a living map of beats, characters, locations, and notes, connected by meaningful relationships (causes, transitions, conflicts).
+- **A debating agent crew** instead of a single generator — seven specialists argue your story into shape, streaming their reasoning live so you see *why* a beat survives.
+- **A persistent Story Bible** instead of amnesia — a vector-indexed knowledge base (RAG) that every agent consults, so Mira's scar and the rules of your world are never contradicted.
+- **Industry-standard output** instead of plain text — one click exports a properly formatted screenplay as **PDF, Fountain, Final Draft (.fdx), or plain text**, plus a producer-ready **pitch deck**.
+
+The result: a creator goes from a single premise to a structured, consistent, exportable screenplay — with an AI crew that pushes for the strongest version of their idea.
+
+---
+
+## ✨ Key Features
+
+### 🎭 The Debating Agent Crew
+Seven specialized agents, each with a distinct persona and mandate, orchestrated as a LangGraph state machine:
+
+| Agent | Role | Mandate |
+|---|---|---|
+| 🏛️ **The Architect** | Drafter | Proposes structural beats — turning points, reversals, inciting incidents |
+| 🎭 **Character Lead** | Critic | Judges voice, motivation, and arc consistency |
+| 🌍 **World Builder** | Critic | Checks setting, lore, and internal rules |
+| 🧵 **Continuity Checker** | Critic | Hunts plot holes and timeline contradictions |
+| ⚡ **Tension/Pacing** | Critic | Reads stakes, momentum, and emotional rhythm |
+| ⚔️ **Devil's Advocate** | Gate | Merges every critique into one verdict (APPROVE / REJECT) |
+| ✍️ **The Reviser** | Rewriter | Rewrites the draft to resolve objections without losing its soul |
+
+### 🗺️ Spatial Story Canvas
+- Infinite pan/zoom canvas (React Flow) with four node types: **beats, characters, locations, notes**
+- **Semantic edges** — label relationships as *causes*, *transitions to*, *features*, or *conflicts*
+- AI suggestions arrive as **dashed "proposed" nodes** you accept or reject
+- Inline editing, drag-to-reposition, minimap
+
+### 📖 Story Bible (RAG)
+- Persistent world knowledge: characters, locations, lore, rules, events
+- Each fact is **embedded** and stored in Postgres; agents retrieve the most relevant facts by **cosine similarity** before every generation
+- The debate loop and agent chat are both grounded in the Story Bible, so the world stays consistent
+
+### 💬 Multi-Turn Agent Chat
+- Open a conversation with any single agent
+- The agent replies **in its persona**, grounded in your canvas + Story Bible, and **remembers the whole conversation**
+- Argue with the Devil's Advocate, brainstorm with the Architect, stress-test continuity
+
+### 🎬 Director's Cut — Multi-Format Export
+Compile the canvas into a screenplay (topologically ordered) and export as:
+- **PDF** — industry-standard layout (US Letter, Courier 12pt, proper screenplay margins)
+- **Fountain** — plain-text markup for any Fountain tool
+- **Final Draft (.fdx)** — native XML for Final Draft software
+- **Plain text** — for quick sharing
+
+### 📊 Pitch Deck Generator
+Turn your story into a producer-ready pitch: **title, logline, synopsis, genre/tone, comparable titles ("It's X meets Y"), character bios, themes, and the hook** — with copy-to-clipboard and Markdown download.
+
+### 🔐 Auth & Real-Time
+- Email/password + Google OAuth (NextAuth), with a no-sign-up **demo mode**
+- Real-time collaborative canvas via **Liveblocks** (shared cursors, synced state)
+
+---
+
+## 🧠 AI Approach & Architecture
+
+### The debate loop (LangGraph)
+
+The core innovation is a **fan-out / fan-in debate graph**, not a linear chain:
+
+```
+                         ┌─────────────────────────┐
+                         │         START           │
+                         └───────────┬─────────────┘
+                                     ▼
+                         ┌─────────────────────────┐
+                         │   🏛️  ARCHITECT         │  drafts2–4 beats
+                         │   (structured output)   │
+                         └───────────┬─────────────┘
+                                     │  fan-out (parallel)
+        ┌──────────────┬─────────────┼─────────────┬──────────────┐
+        ▼              ▼             ▼             ▼              │
+   ┌─────────┐   ┌──────────┐  ┌──────────┐  ┌──────────┐        │
+   │🎭 Char. │   │🌍 World  │  │🧵 Contin.│  │⚡ Tension│        │
+   │  Lead   │   │ Builder  │ │ Checker  │  │ /Pacing  │        │
+   └────┬────┘   └────┬─────┘  └────┬─────┘  └────┬─────┘        │
+        └──────────────┴─────────────┼─────────────┘              │
+                                     ▼  fan-in                    │
+                         ┌─────────────────────────┐              │
+                         │  ⚔️  DEVIL'S ADVOCATE    │  merge +     │
+                         │  (gate: APPROVE/REJECT)  │  verdict     │
+                         └───────────┬─────────────┘              │
+                          APPROVE ┌──┴──┐ REJECT                  │
+                                  ▼     ▼ │
+                               ┌─────┐ ┌──────────────┐           │
+                               │ END │ │ ✍️  REVISER   │───────────┘
+                               └─────┘ │ (rewrite,     │ loop back
+                                       │  max 2 rounds)│  to critics
+                                       └──────────────┘
 ```
 
-## 5. How IBM Bob Was Used as Our Primary Development Tool
-**IBM Bob was the indispensable backbone of this project.** From initial ideation to final deployment, IBM Bob served as our Primary AI Coding Assistant, radically accelerating our development cycle.
+- **Structured output** — every agent returns validated Pydantic objects (beats, critiques, verdicts), with retry + JSON-repair so a malformed model response never blanks the demo.
+- **Streaming** — the loop streams Server-Sent Events (`agent_start`, `critique`, `decision`, `nodes`, `done`) so the UI lights up each agent as it thinks.
+- **Conservative gating** — a blocking critique or a split verdict sends the draft back for revision (up to 2 rounds), so weak beats don't slip through.
 
-*   **System Architecture:** Bob helped conceptualize the bridge between the asynchronous React Flow state and the LangGraph state machine, ensuring our data models (via Pydantic) were robust and type-safe across the JS/Python divide.
-*   **Debugging React Flow:** Managing infinite render loops and state synchronization in a complex spatial canvas is notoriously difficult. Bob pinpointed state mutation errors and optimized our custom node rendering, saving hours of frontend debugging.
-*   **LangGraph Backend Engineering:** Bob was instrumental in writing the core Python backend. It guided the implementation of the LangGraph state channels, helped structure the node functions for our three AI personas, and seamlessly integrated the IBM Watsonx.ai API calls, ensuring the agents communicated flawlessly.
+### Retrieval-Augmented Generation (Story Bible)
 
-## 6. Future Roadmap
-Writer's Room is just the beginning. Our vision for the platform extends into highly specialized, production-ready workflows.
+```
+   writer adds a fact ──► embed (Granite / local fallback) ──► Postgres
+                                                                    │
+   agent needs context ──► embed query ──► cosine similarity ──► top-K facts
+                                                                    │
+                                              injected as fenced "canon"
+                                              into every agent's prompt
+```
 
-*   **Phase 3: The Director's Cut Compiler:** A feature that linearizes the spatial graph, compiling the interconnected nodes into a standard, industry-formatted screenplay (Fountain/PDF format) at the click of a button.
-*   **Phase 3.5: WebGL Optimization:** Transitioning the React Flow canvas to a WebGL-accelerated engine to support massive narrative universes (10,000+ nodes) without frame drops.
-*   **Phase 4: Action Mode Table Reads:** Integrating text-to-speech (TTS) and emotional sentiment analysis to perform live, AI-voiced "table reads" of the drafted scenes directly within the canvas, allowing creators to *hear* the pacing of their scripts instantly.
+The Story Bible is what turns the agents from text generators into **partners that know your world**.
 
-## 7. Installation / Local Setup
+### Prompt-injection defense
+All user-supplied content (canvas, facts, chat) is wrapped in delimiters with an explicit instruction hierarchy, so node content can never hijack an agent's role.
+
+### Model
+- **IBM Granite** (`ibm/granite-4-h-small`) on **watsonx.ai** for all generation and chat
+- **IBM Granite embeddings** for the Story Bible (with a deterministic local fallback for offline dev)
+- Backend-agnostic: a single `MODEL_BACKEND` env var switches between watsonx (demo) and local Ollama Granite (free dev)
+
+---
+
+## 🎨 Challenge Theme Alignment
+
+**Theme: Creative Industries — "AI as a creative partner, not a content generator."**
+
+| Brief requirement | How we answer it |
+|---|---|
+| *AI as a creative partner* | Agents **debate, critique, and revise** — and you can **argue back** in multi-turn chat. They don't just emit text. |
+| *Bridge imagination → execution* | One click from a premise to an **industry-formatted screenplay** (PDF/Fountain/FDX) and a **producer pitch deck**. |
+| *Storytelling & content creation tools* | The spatial canvas + debate loop is a purpose-built storytelling environment. |
+| *Creative ideation & brainstorming* | The Architect proposes branching directions; the pitch deck synthesizes them. |
+| *Multimedia / multimodal experiences* | Multi-format export, live streaming debate, real-time collaborative canvas. |
+| *Help creators work faster* | From premise to structured, consistent, exportable draft in minutes, not weeks. |
+
+**Required tech:** IBM Bob (primary dev tool) ✅ · AI as core component ✅
+**Recommended tech used:** IBM Granite ✅ · watsonx ✅ · Python + Node.js + React + Next.js ✅
+
+---
+
+## 🤖 How IBM Bob Was Used
+
+**IBM Bob was the primary development tool for this project** — used throughout in VS Code across Ask, Plan, Code, and Advanced modes:
+
+- **Codebase exploration** — Bob analyzed the starter structure and generated an implementation plan for the agent architecture.
+- **Spec-driven feature building** — the LangGraph debate loop, the streaming SSE layer, and the React Flow canvas were built with Bob generating implementation from specs, then reviewing and refining.
+- **Debugging** — Bob systematically diagnosed issues (structured-output parsing, SSE framing, React Flow re-render loops) and proposed targeted fixes.
+- **Iteration** — rapid back-and-forth refinement of prompts, schemas, and UI components.
+
+> 📸 *[Add 2–3 screenshots of IBM Bob sessions here: e.g. Bob generating the debate graph, Bob planning the export pipeline, Bob debugging the SSE stream.]*
+
+---
+
+## 🛠️ Tech Stack
+
+| Layer | Technology |
+|---|---|
+| **AI / LLM** | IBM Granite (`ibm/granite-4-h-small`) on watsonx.ai |
+| **Agent orchestration** | LangGraph + LangChain (`langchain-ibm`) |
+| **Backend** | Python 3.11 · FastAPI · Uvicorn · SSE-Starlette |
+| **Frontend** | Next.js 15 (App Router) · React 19 · TypeScript |
+| **Canvas** | React Flow (`@xyflow/react` v12) |
+| **Real-time** | Liveblocks (collaborative canvas) |
+| **Database** | PostgreSQL (Neon) · Prisma ORM |
+| **Auth** | NextAuth v5 (credentials + Google OAuth) |
+| **RAG / embeddings** | Granite embeddings + cosine similarity (Postgres-backed) |
+| **Export** | jsPDF (PDF), Fountain, Final Draft XML |
+| **Styling** | Tailwind CSS · Framer Motion |
+| **Dev tool** | IBM Bob (primary) · uv (Python) |
+
+---
+
+## 🚀 Getting Started
 
 ### Prerequisites
-*   Node.js (v18+)
-*   Python (3.10+)
-*   IBM Watsonx.ai API Credentials
+- Node.js 20+ and npm
+- Python 3.11+ and [uv](https://docs.astral.sh/uv/)
+- A PostgreSQL database (we use [Neon](https://neon.tech) — free tier)
+- IBM Cloud / watsonx.ai credentials (API key + project ID)
 
-### Frontend (Next.js)
+### 1. Clone the repo
 ```bash
-cd web
-npm install
-# or yarn install / pnpm install
-
-# Start the development server
-npm run dev
+git clone https://github.com/ArpitKumar8649/IBM-Bob.git
+cd IBM-Bob
 ```
-The spatial canvas will be available at `http://localhost:3000`.
 
-### Backend (FastAPI + LangGraph)
+### 2. Backend (FastAPI)
 ```bash
 cd api
-python -m venv venv
-source venv/bin/activate  # On Windows use `venv\Scripts\activate`
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Configure Environment
-cp .env.example .env
-# Edit .env and add your WATSONX_API_KEY and WATSONX_PROJECT_ID
-
-# Start the FastAPI server
-uvicorn main:app --reload --port 8000
+cp ../.env.example ../.env        # then fill in your watsonx keys
+uv sync                            # install dependencies
+uv run uvicorn app.main:app --reload --port 8000
 ```
-The backend API will be available at `http://localhost:8000`, with interactive Swagger documentation at `http://localhost:8000/docs`.
+The API runs at `http://localhost:8000` (docs at `/docs`).
+
+### 3. Frontend (Next.js)
+```bash
+cd web
+cp .env.example .env.local         # then fill in your keys
+npm install
+npx prisma db push                 # create the database tables
+npm run dev
+```
+The app runs at `http://localhost:3000`.
+
+### 4. Try it
+1. Open `http://localhost:3000` and click **"Try the demo — no sign-up"**
+2. On the canvas, click the **✦ sparkle** on a node to watch the agents debate
+3. Open the **Story Bible** to add world facts, then **Talk to an agent**
+4. Click **Director's Cut** to export your screenplay, or **Pitch Deck** to generate a pitch
+
+---
+
+## 🔑 Environment Variables
+
+### `api/.env` (backend)
+| Variable | Description |
+|---|---|
+| `MODEL_BACKEND` | `watsonx` (demo) or `ollama` (local dev) |
+| `WATSONX_API_KEY` | watsonx.ai API key |
+| `WATSONX_PROJECT_ID` | watsonx.ai project ID |
+| `WATSONX_URL` | watsonx endpoint (default `https://us-south.ml.cloud.ibm.com`) |
+| `WATSONX_MODEL_ID` | Granite model (default `ibm/granite-4-h-small`) |
+| `OLLAMA_URL` / `OLLAMA_MODEL_ID` | local Ollama Granite (dev) |
+| `CORS_ORIGINS` | comma-separated allowed origins |
+| `WRITERS_ROOM_API_KEY` | optional shared API key for the demo backend |
+
+### `web/.env.local` (frontend)
+| Variable | Description |
+|---|---|
+| `DATABASE_URL` | PostgreSQL connection string (Neon) |
+| `NEXTAUTH_URL` | app URL (default `http://localhost:3000`) |
+| `NEXTAUTH_SECRET` | session secret (`openssl rand -base64 32`) |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth (optional) |
+| `NEXT_PUBLIC_API_BASE_URL` | backend URL the browser calls |
+| `NEXT_PUBLIC_LIVEBLOCKS_PUBLIC_KEY` | Liveblocks public key |
+| `WATSONX_EMBED_MODEL_ID` | Granite embedding model (optional) |
+
+---
+
+## 📡 API Reference
+
+### Agent orchestration (FastAPI)
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/agent/invoke` | Run the debate loop, return approved nodes (JSON) |
+| `POST` | `/agent/stream` | Stream the live debate as SSE events |
+| `POST` | `/agent/chat` | Multi-turn chat with a single agent (SSE) |
+| `POST` | `/pitch/generate` | Generate a structured pitch deck |
+| `POST` | `/api/generate` | Stream a single Granite completion |
+| `GET` | `/api/model-info` | Report the active model/backend |
+| `GET` | `/healthz` | Liveness probe |
+
+### Story Bible (Next.js API routes)
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/api/bible/facts` | Add a fact (auto-embedded) |
+| `GET` | `/api/bible/facts?roomId=` | List a room's facts |
+| `DELETE` | `/api/bible/facts?id=` | Delete a fact |
+| `GET` | `/api/bible/search?roomId=&q=&k=` | Semantic search (cosine similarity) |
+
+---
+
+## 📁 Project Structure
+
+```
+IBM-Bob/
+├── api/                          # FastAPI backend
+│   ├── app/
+│   │   ├── main.py               # app entrypoint, CORS, routers
+│   │   ├── config.py             # settings (pydantic-settings)
+│   │   ├── security.py           # API key + rate limiting
+│   │   ├── llm/
+│   │   │   ├── chat_model.py     # backend-agnostic Granite chat model
+│   │   │   └── granite_client.py # raw streaming client
+│   │   ├── orchestration/
+│   │   │   ├── agent_graph.py    # LangGraph debate loop
+│   │   │   ├── personas.py       # agent system prompts
+│   │   │   ├── context.py        # spatial context + injection guards
+│   │   │   └── structured.py     # structured output w/ retry + repair
+│   │   └── routes/
+│   │       ├── agent.py          # /agent/invoke, /agent/stream
+│   │       ├── chat.py           # /agent/chat
+│   │       ├── pitch.py          # /pitch/generate
+│   │       └── generate.py       # /api/generate, /api/model-info
+│   ├── tests/                    # pytest suite
+│   └── pyproject.toml
+├── web/                          # Next.js frontend
+│   ├── app/
+│   │   ├── page.tsx              # landing page
+│   │   ├── dashboard/page.tsx    # writer's command center
+│   │   ├── room/[id]/page.tsx    # the canvas room
+│   │   ├── signin/ signup/       # auth pages
+│   │   ├── pricing/page.tsx
+│   │   └── api/                  # NextAuth + Story Bible routes
+│   ├── components/
+│   │   ├── canvas/               # canvas, agent dock, chat, bible, pitch, export
+│   │   ├── landing/              # navbar, footer, vapour accent, demo button
+│   │   └── ui/                   # sign-in card, vapour effect, toast
+│   ├── lib/                      # api, bible, pitch, export, embeddings, prisma
+│   ├── prisma/schema.prisma      # data models (User, Room, StoryNode, StoryFact…)
+│   └── hooks/                    # useStoryRoom (Liveblocks storage)
+├── .env.example
+└── README.md
+```
+
+---
+
+## 🗺️ Roadmap
+
+**Shipped:** debate loop · spatial canvas · Story Bible (RAG) · agent chat · multi-format export · pitch deck · auth · real-time canvas
+
+**Next (Challenge Fit):** character breakdown sheets · scene/shot-list breakdowns · AI scene images (multimodal) · multi-format story support (novel/comic/game)
+
+**Post-challenge (Feasibility & Impact):** version history · CI/CD · Docker Compose · mobile-responsive · PWA/offline · billing · collaboration suite (comments, approvals) · integrations (Notion, Google Docs) · accessibility · i18n · template marketplace
+
+---
+
+## 👥 Team
+
+**The Writers' Room** — built for the IBM AI Builders Challenge (July 2026).
+
+- *[Your name]* — *[role]*
+- *[Teammate]* — *[role]*
+
+---
+
+## 📄 License
+
+[MIT](./LICENSE) © 2026 The Writers' Room.
+
+---
+
+<div align="center">
+
+**Made with 🤖 IBM Bob · Powered by IBM Granite on watsonx.ai**
+
+*From a single premise to a structured, consistent, exportable screenplay — with an AI crew that fights for your story.*
+
+</div>
