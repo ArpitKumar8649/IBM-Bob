@@ -1,0 +1,142 @@
+// Prisma schema for The Writers' Room
+// NextAuth models (User, Account, Session, VerificationToken) + app domain models.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// =====================================================================
+// NextAuth required models
+// =====================================================================
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  passwordHash  String?   // for OAuth-only users
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts Account[]
+  sessions Session[]
+  rooms    Room[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// =====================================================================
+// App domain models
+// =====================================================================
+
+model Room {
+  id        String   @id @default(cuid())
+  title     String
+  ownerId   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner User        @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  nodes StoryNode[]
+  edges StoryEdge[]
+  facts StoryFact[]
+
+  @@map("rooms")
+}
+
+model StoryNode {
+  id       String @id @default(cuid())
+  roomId   String
+  nodeType String // "plot_beat" | "character" | "location" | "note"
+  title    String
+  content  String @db.Text
+  sequence String?
+  posX     Float  @default(0)
+  posY     Float  @default(0)
+  proposed Boolean @default(false)
+
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@index([roomId])
+  @@map("story_nodes")
+}
+
+model StoryEdge {
+  id     String  @id @default(cuid())
+  roomId String
+  source String
+  target String
+  label  String? // "causes" | "transitions_to" | "features" | "conflicts"
+
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@index([roomId])
+  @@map("story_edges")
+}
+
+// =====================================================================
+// Story Bible — persistent world knowledge with embeddings for RAG.
+// Embeddings are stored as a float array; cosine similarity is computed
+// in-app (appropriate scale for a per-room knowledge base, and deploys
+// anywhere without a vector extension).
+// =====================================================================
+
+model StoryFact {
+  id        String   @id @default(cuid())
+  roomId    String
+  category  String // "character" | "location" | "lore" | "rule" | "event"
+  content   String   @db.Text
+  embedding Float[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@index([roomId])
+  @@map("story_facts")
+}
