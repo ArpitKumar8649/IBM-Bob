@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app import __version__
 from app.config import settings
-from app.routes import agent, chat, generate
+from app.routes import agent, chat, generate, pitch
 
 logging.basicConfig(
     level=logging.INFO,
@@ -65,3 +65,4 @@ async def healthz() -> dict[str, str]:
 app.include_router(generate.router)
 app.include_router(agent.router)
 app.include_router(chat.router)
+app.include_router(pitch.router)

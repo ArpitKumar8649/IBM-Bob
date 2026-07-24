@@ -13,13 +13,14 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { motion, AnimatePresence } from "framer-motion";
-import { BookOpen, Clapperboard, MessageSquare, Sparkles } from "lucide-react";
+import { BookOpen, Clapperboard, MessageSquare, Presentation, Sparkles } from "lucide-react";
 
 import StoryCardNode from "./nodes/StoryCardNode";
 import StoryEdgeComponent from "./edges/StoryEdge";
 import AgentDock, { DOCK_AGENTS } from "./AgentDock";
 import AgentChatDrawer from "./AgentChatDrawer";
 import StoryBiblePanel from "./StoryBiblePanel";
+import PitchDeckPanel from "./PitchDeckPanel";
 import { useToast } from "@/components/ui/Toast";
 import { useStoryRoom } from "@/hooks/useStoryRoom";
 import {
@@ -138,6 +139,7 @@ export default function WritersCanvas({ roomId = "demo-room" }: { roomId?: strin
   const [seeding, setSeeding] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [bibleOpen, setBibleOpen] = useState(false);
+  const [pitchOpen, setPitchOpen] = useState(false);
   const [storyFacts, setStoryFacts] = useState<StoryFact[]>([]);
 
   // Keep the latest graph in refs so streaming callbacks read fresh state.
@@ -460,6 +462,12 @@ export default function WritersCanvas({ roomId = "demo-room" }: { roomId?: strin
         >
           <MessageSquare size={14} className="text-rose-300" /> Talk to an agent
         </button>
+        <button
+          onClick={() => setPitchOpen(true)}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-wine-900/80 backdrop-blur-md border border-rose-400/15 text-[12px] font-medium text-rose-50 hover:border-rose-400/50 transition-colors"
+        >
+          <Presentation size={14} className="text-rose-300" /> Pitch Deck
+        </button>
       </div>
 
       {/* Premise entry popover */}
@@ -579,6 +587,16 @@ export default function WritersCanvas({ roomId = "demo-room" }: { roomId?: strin
         roomId={roomId}
         spatialContext={serializeGraphText()}
         storyFacts={storyFacts}
+      />
+
+      {/* Pitch deck generator (modal) */}
+      <PitchDeckPanel
+        open={pitchOpen}
+        onClose={() => setPitchOpen(false)}
+        roomId={roomId}
+        nodes={serializeGraph().nodes}
+        edges={serializeGraph().edges}
+        storyFacts={storyFacts.map((f) => ({ category: f.category, content: f.content }))}
       />
     </div>
   );
