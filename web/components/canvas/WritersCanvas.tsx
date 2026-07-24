@@ -13,7 +13,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { motion, AnimatePresence } from "framer-motion";
-import { BookOpen, Clapperboard, MessageSquare, Presentation, Sparkles } from "lucide-react";
+import { BookOpen, Clapperboard, ClipboardList, MessageSquare, Presentation, Sparkles } from "lucide-react";
 
 import StoryCardNode from "./nodes/StoryCardNode";
 import StoryEdgeComponent from "./edges/StoryEdge";
@@ -22,6 +22,7 @@ import AgentChatDrawer from "./AgentChatDrawer";
 import StoryBiblePanel from "./StoryBiblePanel";
 import PitchDeckPanel from "./PitchDeckPanel";
 import ExportModal from "./ExportModal";
+import ProductionPanel from "./ProductionPanel";
 import { useToast } from "@/components/ui/Toast";
 import { useStoryRoom } from "@/hooks/useStoryRoom";
 import {
@@ -141,6 +142,7 @@ export default function WritersCanvas({ roomId = "demo-room" }: { roomId?: strin
   const [bibleOpen, setBibleOpen] = useState(false);
   const [pitchOpen, setPitchOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [productionOpen, setProductionOpen] = useState(false);
   const [storyFacts, setStoryFacts] = useState<StoryFact[]>([]);
 
   // Keep the latest graph in refs so streaming callbacks read fresh state.
@@ -467,6 +469,12 @@ export default function WritersCanvas({ roomId = "demo-room" }: { roomId?: strin
         >
           <Presentation size={14} className="text-rose-300" /> Pitch Deck
         </button>
+        <button
+          onClick={() => setProductionOpen(true)}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-wine-900/80 backdrop-blur-md border border-rose-400/15 text-[12px] font-medium text-rose-50 hover:border-rose-400/50 transition-colors"
+        >
+          <ClipboardList size={14} className="text-rose-300" /> Production
+        </button>
       </div>
 
       {/* Premise entry popover */}
@@ -605,6 +613,16 @@ export default function WritersCanvas({ roomId = "demo-room" }: { roomId?: strin
         nodes={nodes}
         edges={edges}
         title="The Writers' Room Draft"
+      />
+
+      {/* Production breakdowns (characters + scenes) */}
+      <ProductionPanel
+        open={productionOpen}
+        onClose={() => setProductionOpen(false)}
+        roomId={roomId}
+        nodes={serializeGraph().nodes}
+        edges={serializeGraph().edges}
+        storyFacts={storyFacts.map((f) => ({ category: f.category, content: f.content }))}
       />
     </div>
   );
