@@ -106,6 +106,26 @@ Compile the canvas into a screenplay (topologically ordered) and export as:
 ### 📊 Pitch Deck Generator
 Turn your story into a producer-ready pitch: **title, logline, synopsis, genre/tone, comparable titles ("It's X meets Y"), character bios, themes, and the hook** — with copy-to-clipboard and Markdown download.
 
+### 🎨 Tone/Genre Transfer
+Rewrite any node in a different style while preserving all plot facts:
+- **10 tones**: noir, comedy, horror, epic fantasy, minimalist, literary, thriller, romance, sci-fi, high fantasy
+- Streaming rewrite with live output
+- Apply directly to the node or copy to clipboard
+- Grounded in Story Bible facts to maintain consistency
+
+### 🖼️ AI Scene Images (Qwen/Wan)
+Generate cinematic concept art for each scene:
+- Granite writes a detailed cinematic prompt per scene (lighting, composition, mood, style)
+- Qwen/Wan2.1 (DashScope) renders the image
+- Two-step architecture: LLM writes prompt → image model renders
+- Graceful fallback: prompt is always surfaced even without an image API key
+
+### 📋 Production Breakdowns
+Industry-standard production artifacts:
+- **Character breakdown sheets**: casting-ready profiles with appearance, arc, key scenes, voice notes
+- **Scene breakdowns + shot lists**: sluglines, cast, props, time of day, suggested shots (WIDE, CLOSE-UP, etc.)
+- Copy/download as Markdown for production teams
+
 ### 🔐 Auth & Real-Time
 - Email/password + Google OAuth (NextAuth), with a no-sign-up **demo mode**
 - Real-time collaborative canvas via **Liveblocks** (shared cursors, synced state)
@@ -212,6 +232,7 @@ All user-supplied content (canvas, facts, chat) is wrapped in delimiters with an
 | Layer | Technology |
 |---|---|
 | **AI / LLM** | IBM Granite (`ibm/granite-4-h-small`) on watsonx.ai |
+| **Image generation** | Qwen/Wan2.1 (DashScope) — text-to-image for scene concepts |
 | **Agent orchestration** | LangGraph + LangChain (`langchain-ibm`) |
 | **Backend** | Python 3.11 · FastAPI · Uvicorn · SSE-Starlette |
 | **Frontend** | Next.js 15 (App Router) · React 19 · TypeScript |
@@ -303,6 +324,10 @@ The app runs at `http://localhost:3000`.
 | `POST` | `/agent/stream` | Stream the live debate as SSE events |
 | `POST` | `/agent/chat` | Multi-turn chat with a single agent (SSE) |
 | `POST` | `/pitch/generate` | Generate a structured pitch deck |
+| `POST` | `/transform/tone` | Rewrite a node in a different tone/genre (SSE) |
+| `POST` | `/scene-image/generate` | Generate AI scene image from prompt |
+| `POST` | `/breakdown/characters` | Generate character breakdown sheets |
+| `POST` | `/breakdown/scenes` | Generate scene breakdowns + shot lists |
 | `POST` | `/api/generate` | Stream a single Granite completion |
 | `GET` | `/api/model-info` | Report the active model/backend |
 | `GET` | `/healthz` | Liveness probe |
@@ -330,30 +355,35 @@ IBM-Bob/
 │   │   │   ├── chat_model.py     # backend-agnostic Granite chat model
 │   │   │   └── granite_client.py # raw streaming client
 │   │   ├── orchestration/
-│   │   │   ├── agent_graph.py    # LangGraph debate loop
-│   │   │   ├── personas.py       # agent system prompts
+│   │   │   ├── agent_graph.py    # LangGraph debate loop (fan-out/fan-in)
+│   │   │   ├── personas.py       # agent system prompts (7 agents)
 │   │   │   ├── context.py        # spatial context + injection guards
 │   │   │   └── structured.py     # structured output w/ retry + repair
 │   │   └── routes/
 │   │       ├── agent.py          # /agent/invoke, /agent/stream
-│   │       ├── chat.py           # /agent/chat
-│   │       ├── pitch.py          # /pitch/generate
+│   │       ├── chat.py           # /agent/chat (multi-turn, SSE)
+│ │       ├── pitch.py          # /pitch/generate
+│   │       ├── transform.py      # /transform/tone (10 styles, SSE)
+│   │       ├── scene_image.py    # /scene-image/generate (Qwen/Wan)
+│   │       ├── breakdown.py      # /breakdown/characters, /breakdown/scenes
 │   │       └── generate.py       # /api/generate, /api/model-info
-│   ├── tests/                    # pytest suite
+│   ├── tests/                    # pytest suite (32 tests)
 │   └── pyproject.toml
 ├── web/                          # Next.js frontend
 │   ├── app/
-│   │   ├── page.tsx              # landing page
+│   │   ├── page.tsx              # landing page (rose theme, vapour text)
 │   │   ├── dashboard/page.tsx    # writer's command center
 │   │   ├── room/[id]/page.tsx    # the canvas room
-│   │   ├── signin/ signup/       # auth pages
-│   │   ├── pricing/page.tsx
-│   │   └── api/                  # NextAuth + Story Bible routes
+│   │   ├── signin/ signup/       # auth pages (rose glass design)
+│   │   ├── pricing/page.tsx      # pricing page
+│   │ └── api/                  # NextAuth + Story Bible routes
 │   ├── components/
-│   │   ├── canvas/               # canvas, agent dock, chat, bible, pitch, export
+│   │   ├── canvas/               # canvas, agent dock, chat drawer, bible panel,
+│   │   │                         #   pitch panel, export modal, production panel,
+│   │   │                         #   transform panel, story card node, story edge
 │   │   ├── landing/              # navbar, footer, vapour accent, demo button
 │   │   └── ui/                   # sign-in card, vapour effect, toast
-│   ├── lib/                      # api, bible, pitch, export, embeddings, prisma
+│   ├── lib/                      # api, bible, pitch, export, breakdown, embeddings, prisma
 │   ├── prisma/schema.prisma      # data models (User, Room, StoryNode, StoryFact…)
 │   └── hooks/                    # useStoryRoom (Liveblocks storage)
 ├── .env.example
@@ -364,11 +394,35 @@ IBM-Bob/
 
 ## 🗺️ Roadmap
 
-**Shipped:** debate loop · spatial canvas · Story Bible (RAG) · agent chat · multi-format export · pitch deck · auth · real-time canvas
+**Shipped:**
+- ✅ Multi-agent debate loop (7 agents, LangGraph)
+- ✅ Spatial story canvas (React Flow, 4 node types, semantic edges)
+- ✅ Story Bible (RAG with embeddings + cosine similarity)
+- ✅ Multi-turn agent chat (persona-grounded, conversation memory)
+- ✅ Multi-format export (PDF, Fountain, Final Draft, plain text)
+- ✅ Pitch deck generator (logline, synopsis, comps, character bios)
+- ✅ Tone/genre transfer (10 styles, streaming rewrite)
+- ✅ AI scene images (Granite prompt → Qwen/Wan render)
+- ✅ Production breakdowns (character sheets, scene/shot lists)
+- ✅ Auth (email/password + Google OAuth + demo mode)
+- ✅ Real-time collaborative canvas (Liveblocks)
 
-**Next (Challenge Fit):** character breakdown sheets · scene/shot-list breakdowns · AI scene images (multimodal) · multi-format story support (novel/comic/game)
+**Next (Feasibility & Impact):**
+- Docker Compose (one-command local run)
+- CI/CD (GitHub Actions: lint + test + build)
+- Deployment (Vercel frontend + Render/Railway backend)
+- Demo video (≤3 min walkthrough)
+- Mobile-responsive canvas
+- PWA/offline support
 
-**Post-challenge (Feasibility & Impact):** version history · CI/CD · Docker Compose · mobile-responsive · PWA/offline · billing · collaboration suite (comments, approvals) · integrations (Notion, Google Docs) · accessibility · i18n · template marketplace
+**Post-challenge:**
+- Version history (canvas snapshots)
+- Collaboration suite (comments, approvals, @mentions)
+- Integrations (Notion, Google Docs, Slack)
+- Billing (Stripe)
+- Accessibility (WCAG 2.1 AA)
+- i18n (multi-language UI)
+- Template marketplace (community-shared story structures)
 
 ---
 
