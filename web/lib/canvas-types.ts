@@ -26,6 +26,7 @@ export type StoryNodeData = {
   onAccept?: () => void;
   onReject?: () => void;
   onEdit?: (title: string, content: string) => void;
+  onTransform?: () => void;
 };
 
 /** A concrete React Flow node carrying StoryNodeData. */

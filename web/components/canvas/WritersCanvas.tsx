@@ -23,6 +23,7 @@ import StoryBiblePanel from "./StoryBiblePanel";
 import PitchDeckPanel from "./PitchDeckPanel";
 import ExportModal from "./ExportModal";
 import ProductionPanel from "./ProductionPanel";
+import TransformPanel from "./TransformPanel";
 import { useToast } from "@/components/ui/Toast";
 import { useStoryRoom } from "@/hooks/useStoryRoom";
 import {
@@ -143,6 +144,7 @@ export default function WritersCanvas({ roomId = "demo-room" }: { roomId?: strin
   const [pitchOpen, setPitchOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [productionOpen, setProductionOpen] = useState(false);
+  const [transformNodeId, setTransformNodeId] = useState<string | null>(null);
   const [storyFacts, setStoryFacts] = useState<StoryFact[]>([]);
 
   // Keep the latest graph in refs so streaming callbacks read fresh state.
@@ -371,6 +373,7 @@ export default function WritersCanvas({ roomId = "demo-room" }: { roomId?: strin
           onAccept: () => acceptNode(node.id),
           onReject: () => rejectNode(node.id),
           onEdit: (title: string, content: string) => editNode(node.id, title, content),
+          onTransform: () => setTransformNodeId(node.id),
         },
       })),
     [nodes, runDebate, acceptNode, rejectNode, editNode]
@@ -624,6 +627,21 @@ export default function WritersCanvas({ roomId = "demo-room" }: { roomId?: strin
         edges={serializeGraph().edges}
         storyFacts={storyFacts.map((f) => ({ category: f.category, content: f.content }))}
       />
+
+      {/* Tone/genre transfer (per-node) */}
+      {transformNodeId && (
+        <TransformPanel
+          open={Boolean(transformNodeId)}
+          onClose={() => setTransformNodeId(null)}
+          nodeId={transformNodeId}
+          nodeTitle={nodes.find((n) => n.id === transformNodeId)?.data.title ?? ""}
+          nodeContent={nodes.find((n) => n.id === transformNodeId)?.data.content ?? ""}
+          storyFacts={storyFacts.map((f) => ({ category: f.category, content: f.content }))}
+          onApply={(newContent) => {
+            updateNode(transformNodeId, { content: newContent });
+          }}
+        />
+      )}
     </div>
   );
 }

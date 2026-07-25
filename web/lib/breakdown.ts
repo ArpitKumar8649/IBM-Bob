@@ -111,6 +111,91 @@ export async function generateSceneImage(
 }
 
 // --------------------------------------------------------------------------- //
+// Tone / genre transfer
+// --------------------------------------------------------------------------- //
+
+export const TONE_OPTIONS = [
+  { key: "noir", label: "Noir", emoji: "🌧️" },
+  { key: "comedy", label: "Comedy", emoji: "😂" },
+  { key: "horror", label: "Horror", emoji: "👻" },
+  { key: "epic", label: "Epic Fantasy", emoji: "⚔️" },
+  { key: "minimalist", label: "Minimalist", emoji: "✂️" },
+  { key: "literary", label: "Literary", emoji: "📖" },
+  { key: "thriller", label: "Thriller", emoji: "🔪" },
+  { key: "romance", label: "Romance", emoji: "💕" },
+  { key: "sci-fi", label: "Sci-Fi", emoji: "🚀" },
+  { key: "fantasy", label: "High Fantasy", emoji: "🐉" },
+] as const;
+
+export interface ToneTransformOptions {
+  content: string;
+  title?: string;
+  tone: string;
+  storyFacts?: { category: string; content: string }[];
+  onToken: (text: string) => void;
+  onDone?: () => void;
+  onError?: (message: string) => void;
+  signal?: AbortSignal;
+}
+
+/**
+ * Stream a tone/genre rewrite of a story node. Calls onToken for each chunk,
+ * onDone when finished, onError on failure.
+ */
+export async function streamToneTransform(opts: ToneTransformOptions): Promise<void> {
+  const res = await fetch(`${agentBaseUrl()}/transform/tone`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      content: opts.content,
+      title: opts.title ?? "",
+      tone: opts.tone,
+      story_facts: opts.storyFacts ?? [],
+    }),
+    signal: opts.signal,
+  });
+
+  if (!res.ok || !res.body) {
+    opts.onError?.(`Transform failed: ${res.status}`);
+    return;
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    buffer = buffer.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+
+    let sep: number;
+    while ((sep = buffer.indexOf("\n\n")) !== -1) {
+      const frame = buffer.slice(0, sep);
+      buffer = buffer.slice(sep + 2);
+
+      let eventName = "";
+      let dataStr = "";
+      for (const line of frame.split("\n")) {
+        if (line.startsWith("event:")) eventName = line.slice(6).trim();
+        else if (line.startsWith("data:")) dataStr += line.slice(5).trim();
+      }
+      if (!eventName || !dataStr) continue;
+
+      try {
+        const data = JSON.parse(dataStr);
+        if (eventName === "token") opts.onToken(data.text ?? "");
+        else if (eventName === "done") opts.onDone?.();
+        else if (eventName === "error") opts.onError?.(data.message ?? "Transform error");
+      } catch {
+        // ignore malformed frames
+      }
+    }
+  }
+}
+
+// --------------------------------------------------------------------------- //
 // Markdown renderers (for download / copy)
 // --------------------------------------------------------------------------- //
 

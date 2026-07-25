@@ -8,6 +8,7 @@ import {
   Clapperboard,
   GripVertical,
   MapPin,
+  Palette,
   Sparkles,
   StickyNote,
   User,
@@ -136,14 +137,27 @@ const StoryCardNode = ({ data, selected, isConnectable }: NodeProps<StoryNode>) 
         </div>
 
         {/* Expand / generate action (only on settled plot beats) */}
-        {!proposed && !loading && data.onGenerate && (
-          <button
-            onClick={data.onGenerate}
-            title="Ask the room to branch from here"
-            className="p-1.5 rounded-md text-rose-100/50 hover:text-rose-300 hover:bg-rose-400/10 transition-colors"
-          >
-            <Sparkles size={14} />
-          </button>
+        {!proposed && !loading && (
+          <div className="flex items-center gap-1">
+            {data.onGenerate && (
+              <button
+                onClick={data.onGenerate}
+                title="Ask the room to branch from here"
+                className="p-1.5 rounded-md text-rose-100/50 hover:text-rose-300 hover:bg-rose-400/10 transition-colors"
+              >
+                <Sparkles size={14} />
+              </button>
+            )}
+            {data.onTransform && (
+              <button
+                onClick={data.onTransform}
+                title="Rewrite in a different tone"
+                className="p-1.5 rounded-md text-rose-100/50 hover:text-rose-300 hover:bg-rose-400/10 transition-colors"
+              >
+                <Palette size={14} />
+              </button>
+            )}
+          </div>
         )}
       </div>
 
