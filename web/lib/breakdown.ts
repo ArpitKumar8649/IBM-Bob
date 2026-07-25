@@ -83,6 +83,34 @@ export async function generateSceneBreakdown(
 }
 
 // --------------------------------------------------------------------------- //
+// AI scene images (DashScope / Qwen Wan2.1)
+// --------------------------------------------------------------------------- //
+
+export interface SceneImageResult {
+  image_url: string | null;
+  status: "success" | "failed" | "no_key";
+  message: string | null;
+}
+
+/**
+ * Render a cinematic image prompt with DashScope's Wan2.1 text-to-image model.
+ * Returns the image URL on success, or a status explaining why it couldn't
+ * (no key configured, generation failed, etc.).
+ */
+export async function generateSceneImage(
+  prompt: string,
+  size = "1280*720"
+): Promise<SceneImageResult> {
+  const res = await fetch(`${agentBaseUrl()}/scene-image/generate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt, size }),
+  });
+  if (!res.ok) throw new Error(`Image generation failed (${res.status})`);
+  return res.json();
+}
+
+// --------------------------------------------------------------------------- //
 // Markdown renderers (for download / copy)
 // --------------------------------------------------------------------------- //
 

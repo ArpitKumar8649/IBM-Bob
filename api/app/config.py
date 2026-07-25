@@ -37,6 +37,11 @@ class Settings(BaseSettings):
     ollama_url: str = "http://localhost:11434"
     ollama_model_id: str = "granite3.3"
 
+    # ---- DashScope (Alibaba Qwen) — for image generation ----
+    dashscope_api_key: str = ""
+    dashscope_image_model_id: str = "wanx2.1-t2i-turbo"  # or wanx2.1-t2i-plus for higher quality
+    dashscope_base_url: str = "https://dashscope.aliyuncs.com/api/v1"
+
     # ---- API server ----
     api_host: str = "0.0.0.0"
     api_port: int = 8000

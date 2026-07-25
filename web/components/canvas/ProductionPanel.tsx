@@ -14,6 +14,7 @@ import {
 import {
   generateCharacterBreakdown,
   generateSceneBreakdown,
+  generateSceneImage,
   charactersToMarkdown,
   scenesToMarkdown,
   type CharacterBreakdown,
@@ -56,8 +57,39 @@ export default function ProductionPanel({
   const [scenes, setScenes] = useState<SceneBreakdown[] | null>(null);
   const [loadingChars, setLoadingChars] = useState(false);
   const [loadingScenes, setLoadingScenes] = useState(false);
+  // scene_number -> image URL (or "loading" / "error:<msg>")
+  const [sceneImages, setSceneImages] = useState<Record<number, string>>({});
 
   const req = { roomId, nodes, edges, storyFacts };
+
+  const genSceneImage = async (scene: SceneBreakdown) => {
+    setSceneImages((prev) => ({ ...prev, [scene.scene_number]: "loading" }));
+    try {
+      const result = await generateSceneImage(scene.image_prompt);
+      if (result.status === "success" && result.image_url) {
+        setSceneImages((prev) => ({ ...prev, [scene.scene_number]: result.image_url! }));
+        toast("Scene image generated!", "success");
+      } else if (result.status === "no_key") {
+        setSceneImages((prev) => ({
+          ...prev,
+          [scene.scene_number]: "error:DASHSCOPE_API_KEY not set — copy the prompt into any image tool.",
+        }));
+        toast(result.message || "No image key configured", "info");
+      } else {
+        setSceneImages((prev) => ({
+          ...prev,
+          [scene.scene_number]: `error:${result.message || "Image generation failed"}`,
+        }));
+        toast(result.message || "Image generation failed", "error");
+      }
+    } catch (err) {
+      setSceneImages((prev) => ({
+        ...prev,
+        [scene.scene_number]: `error:${err instanceof Error ? err.message : "Failed"}`,
+      }));
+      toast("Image generation failed", "error");
+    }
+  };
 
   const genCharacters = async () => {
     setLoadingChars(true);
@@ -381,17 +413,50 @@ export default function ProductionPanel({
                               </div>
                             </div>
 
-                            {/* Image prompt */}
+                            {/* Image prompt + AI generation */}
                             <div className="rounded-lg bg-gradient-to-br from-rose-500/10 to-wine-950 border border-rose-400/20 p-3">
-                              <div className="flex items-center gap-1.5 mb-1.5">
-                                <ImageIcon size={13} className="text-rose-300" />
-                                <span className="text-rose-300 text-[11px] uppercase tracking-wider">
-                                  AI Image Prompt
-                               </span>
+                              <div className="flex items-center justify-between mb-1.5">
+                                <div className="flex items-center gap-1.5">
+                                  <ImageIcon size={13} className="text-rose-300" />
+                                  <span className="text-rose-300 text-[11px] uppercase tracking-wider">
+                                    AI Image Prompt
+                                  </span>
+                                </div>
+                                <button
+                                  onClick={() => genSceneImage(s)}
+                                  disabled={sceneImages[s.scene_number] === "loading"}
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-rose-500 text-white text-[11px] font-semibold hover:bg-rose-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                >
+                                  {sceneImages[s.scene_number] === "loading" ? (
+                                    <>
+                                      <Loader2 size={11} className="animate-spin" /> Generating…
+                                   </>
+                                  ) : (
+                                    <>
+                                      <ImageIcon size={11} /> Generate image
+                                    </>
+                                  )}
+                                </button>
                               </div>
-                              <p className="text-rose-100/70 text-[12px] leading-relaxed italic">
+                              <p className="text-rose-100/70 text-[12px] leading-relaxed italic mb-2">
                                 {s.image_prompt}
                               </p>
+
+                              {/* Rendered image / status */}
+                              {sceneImages[s.scene_number] &&
+                                sceneImages[s.scene_number] !== "loading" &&
+                                !sceneImages[s.scene_number].startsWith("error:") && (
+                                  <img
+                                    src={sceneImages[s.scene_number]}
+                                    alt={`Scene ${s.scene_number} concept`}
+                                    className="w-full rounded-lg border border-rose-400/20 mt-1"
+                                  />
+                                )}
+                              {sceneImages[s.scene_number]?.startsWith("error:") && (
+                                <p className="text-[11px] text-rose-300/70 bg-wine-950/60 rounded px-2 py-1.5">
+                                  {sceneImages[s.scene_number].replace("error:", "")}
+                               </p>
+                              )}
                             </div>
                           </div>
                         ))}
