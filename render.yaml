@@ -1,0 +1,25 @@
+services:
+  # FastAPI backend
+  - type: web
+    name: writers-room-api
+    runtime: docker
+    dockerfilePath: ./api/Dockerfile
+    dockerContext: ./api
+    plan: free
+    healthCheckPath: /healthz
+    envVars:
+      - key: MODEL_BACKEND
+        value: watsonx
+      - key: WATSONX_API_KEY
+        sync: false
+      - key: WATSONX_PROJECT_ID
+        sync: false
+      - key: WATSONX_MODEL_ID
+        value: ibm/granite-4-h-small
+      - key: DASHSCOPE_API_KEY
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: WRITERS_ROOM_API_KEY
+        sync: false
+    autoDeploy: true
