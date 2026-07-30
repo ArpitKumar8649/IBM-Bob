@@ -31,7 +31,6 @@ Next.js route that owns Postgres. See ``web/lib/voice.ts``.
 from __future__ import annotations
 
 import logging
-import re
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends
