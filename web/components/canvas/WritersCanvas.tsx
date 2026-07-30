@@ -13,7 +13,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { motion, AnimatePresence } from "framer-motion";
-import { Activity, BookOpen, Clapperboard, ClipboardList, FileCheck2, MessageSquare, Presentation, Sparkles } from "lucide-react";
+import { Activity, AudioLines, BookOpen, Clapperboard, ClipboardList, FileCheck2, MessageSquare, Presentation, Sparkles } from "lucide-react";
 
 import StoryCardNode from "./nodes/StoryCardNode";
 import StoryEdgeComponent from "./edges/StoryEdge";
@@ -26,6 +26,7 @@ import ProductionPanel from "./ProductionPanel";
 import TransformPanel from "./TransformPanel";
 import CoveragePanel from "./CoveragePanel";
 import TensionPanel from "./TensionPanel";
+import VoicePanel from "./VoicePanel";
 import { useToast } from "@/components/ui/Toast";
 import { useStoryRoom } from "@/hooks/useStoryRoom";
 import {
@@ -36,6 +37,7 @@ import {
   type StreamEvent,
 } from "@/lib/api";
 import { addFact, searchFacts, type StoryFact } from "@/lib/bible";
+import { listVoicesForDebate, type LockedVoicePayload } from "@/lib/voice";
 import {
   CRITIC_ORDER,
   EDGE_STYLES,
@@ -253,6 +255,7 @@ export default function WritersCanvas({ roomId = "demo-room" }: { roomId?: strin
   const [productionOpen, setProductionOpen] = useState(false);
   const [coverageOpen, setCoverageOpen] = useState(false);
   const [tensionOpen, setTensionOpen] = useState(false);
+  const [voiceOpen, setVoiceOpen] = useState(false);
   const [transformNodeId, setTransformNodeId] = useState<string | null>(null);
   const [storyFacts, setStoryFacts] = useState<StoryFact[]>([]);
 
@@ -379,6 +382,17 @@ export default function WritersCanvas({ roomId = "demo-room" }: { roomId?: strin
         // Story bible is best-effort; the debate still works without it.
       }
 
+      // Voice locks: the Character Lead measures the draft's dialogue against
+      // these in code, so a beat that puts the wrong words in a character's
+      // mouth is rejected by arithmetic rather than by a model's opinion. Also
+      // best-effort — a room with no locks debates exactly as it did before.
+      let lockedVoices: LockedVoicePayload[] = [];
+      try {
+        lockedVoices = await listVoicesForDebate(roomId);
+      } catch {
+        // No locks, or the read failed. Either way the debate proceeds unmeasured.
+      }
+
       try {
         await streamAgentDebate(
           {
@@ -387,6 +401,7 @@ export default function WritersCanvas({ roomId = "demo-room" }: { roomId?: strin
             nodes: gNodes,
             edges: gEdges,
             storyFacts: ragFacts,
+            lockedVoices,
           },
           (event: StreamEvent) => {
             console.log("[SSE Event]", event.event, event);
@@ -647,6 +662,12 @@ export default function WritersCanvas({ roomId = "demo-room" }: { roomId?: strin
         >
           <Activity size={14} className="text-rose-300" /> Pacing
         </button>
+        <button
+          onClick={() => setVoiceOpen(true)}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-wine-900/80 backdrop-blur-md border border-rose-400/15 text-[12px] font-medium text-rose-50 hover:border-rose-400/50 transition-colors"
+        >
+          <AudioLines size={14} className="text-rose-300" /> Voice Lock
+        </button>
       </div>
 
       {/* Premise entry popover */}
@@ -811,6 +832,16 @@ export default function WritersCanvas({ roomId = "demo-room" }: { roomId?: strin
       <TensionPanel
         open={tensionOpen}
         onClose={() => setTensionOpen(false)}
+        roomId={roomId}
+        nodes={serializeGraph().nodes}
+        edges={serializeGraph().edges}
+        storyFacts={storyFacts.map((f) => ({ category: f.category, content: f.content }))}
+      />
+
+      {/* Character voice lock (measure a voice, then judge a line against it) */}
+      <VoicePanel
+        open={voiceOpen}
+        onClose={() => setVoiceOpen(false)}
         roomId={roomId}
         nodes={serializeGraph().nodes}
         edges={serializeGraph().edges}

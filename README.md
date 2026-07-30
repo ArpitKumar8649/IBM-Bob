@@ -6,7 +6,7 @@
 [![IBM Granite](https://img.shields.io/badge/IBM%20Granite-granite--4--h--small-0f62fe?style=for-the-badge&logo=ibm&logoColor=white)](https://www.ibm.com/granite)
 [![watsonx.ai](https://img.shields.io/badge/served%20on-watsonx.ai-6929c4?style=for-the-badge)](https://www.ibm.com/watsonx)
 [![Built with IBM Bob](https://img.shields.io/badge/built%20with-IBM%20Bob-1f1f1f?style=for-the-badge)](https://www.ibm.com/products/bob)
-[![Tests](https://img.shields.io/badge/tests-81%20passing-05D582?style=for-the-badge)](#-how-we-keep-the-ai-honest)
+[![Tests](https://img.shields.io/badge/tests-306%20passing-05D582?style=for-the-badge)](#-how-we-keep-the-ai-honest)
 
 **Built for the [IBM AI Builders Challenge — July 2026](https://www.ibm.com/) · *Creative Industries* track.**
 
@@ -70,6 +70,24 @@ A professional script-reader's verdict on your story: logline, premise, **Recomm
 ### 📈 Pacing & tension analytics
 A per-beat dramatic-tension curve with structural insights **computed in code**: the model only scores each beat's tension (in the order the backend hands it); the *judgment* — climax placement, whether the peak lands in the back third, the longest "sag" of flat beats, the overall arc shape — is derived deterministically from those numbers. Hand-rolled SVG chart (no chart dependency), climax marker, shaded dead-zones, and a copyable / downloadable Markdown read.
 
+### 🔒 Character voice lock *(the verdict is arithmetic)*
+Lock a character's voice from the dialogue they already speak on the canvas. The backend harvests only the lines it can *attribute* to them, then measures **14 style axes in pure Python** — sentence length and rhythm variation, word length, contractions, hedging, intensifiers, first person, vocabulary range, questions, exclamations, interruptions, trailing off. Granite is then allowed to **name** what was measured (register label, signature phrases, vocabulary domain, and the words this character would never say). It never scores a voice.
+
+Any line can then be measured against that fingerprint — **no model call, no tokens, identical every time** — and the panel shows the evidence: the drift score, which axes moved and in which direction, and which axes were *excluded* and why (a line too short to measure diversity honestly says so instead of guessing).
+
+The same arithmetic runs **inside the debate**. The Character Lead measures the crew's own draft against the room's locks before it writes a word of critique, and its verdict is **floored at the measured one** — the model may judge more harshly, but it cannot talk a measured blocker down to an approval. A room with no locks debates exactly as it did before.
+
+The drift score maps to a fixed band, and the band decides — so the threshold is a written-down claim, not a vibe:
+
+| Drift | Band | In a debate |
+|---:|---|---|
+| 0–17 | `ok` | Approves. Voice has legitimate range. |
+| 18–34 | `minor` | Reported in the feedback, **does not** reject. |
+| 35–59 | `major` | **Rejects.** A wholesale register change. |
+| 60+ | `blocker` | **Rejects.** Or any hard rule broken (a `never_says` word). |
+
+One measured `major` is enough to send a round back even if all four models approved — that is deliberate, and it's pinned by a test that uses a lock with *no* hard rules at all, so nothing but the numbers can be doing the work. The line lives in exactly one place (`severity_rejects` in `app/orchestration/voice.py`) if you'd rather only blockers reject.
+
 ### 🎬 Director's Cut + production breakdowns
 - **Director's Cut** compiles the graph into a properly formatted screenplay — **PDF** (US Letter, Courier 12pt, real margins), **Fountain**, **Final Draft `.fdx`**, or plain text.
 - **Character breakdown sheets** (casting-ready: appearance, arc, key scenes, voice note).
@@ -92,7 +110,7 @@ The core innovation is the **debate loop**: a structured, multi-agent argument w
 flowchart TD
     U["✍️ Writer clicks ✦ on a node"] --> RAG["Story Bible RAG<br/>(cosine-similarity retrieval)"]
     RAG --> A["🏛️ Architect<br/>drafts 2–4 beats"]
-    A --> C1["🎭 Character"]
+    A --> C1["🎭 Character<br/>+ measured voice drift"]
     A --> C2["🌍 World"]
     A --> C3["🧵 Continuity"]
     A --> C4["⚡ Tension"]
@@ -110,18 +128,19 @@ flowchart TD
 flowchart LR
     subgraph FE["Next.js 15 · React 19 · React Flow v12 · Liveblocks"]
         Canvas["Spatial canvas"]
-        Panels["Coverage · Pitch · Production · Chat"]
+        Panels["Coverage · Pitch · Production<br/>Voice Lock · Chat"]
     end
     subgraph BE["FastAPI · LangGraph"]
         Stream["/agent/stream (SSE)"]
         Graph["debate graph<br/>Architect → 4 critics → gate → reviser"]
-        Cov["/coverage · /pitch · /breakdown · /transform"]
+        Cov["/coverage · /pitch · /breakdown<br/>/transform · /voice"]
     end
     subgraph AI["IBM"]
         G["IBM Granite<br/>granite-4-h-small<br/>on watsonx.ai"]
     end
     subgraph DB["Neon Postgres · Prisma"]
         SB["Story Bible<br/>(embeddings)"]
+        VF["Voice fingerprints<br/>(14 measured axes)"]
     end
     Canvas -->|nodes + edges| Stream
     Panels --> Cov
@@ -129,6 +148,8 @@ flowchart LR
     Cov --> G
     Graph --> G
     Graph -.retrieve.-> SB
+    Canvas -.locked voices.-> Stream
+    Panels -.store / read.-> VF
     Graph -->|SSE events| Canvas
 ```
 
@@ -147,8 +168,9 @@ A creative tool is only a partner if you can trust its judgment. These aren't pr
 1. **The verdict is computed in code.** The Devil's Advocate's APPROVE / REJECT is calculated deterministically from the four critics' structured scores (`merge_agent` / `gate_router` in `agent_graph.py`) — *never* by asking the model to grade its own output. A 2–2 split is treated as meaningful disagreement (→ revise), not silent acceptance.
 2. **Every output is schema-validated.** Each model response is parsed against a strict Pydantic schema, with automatic retry and JSON-repair. A malformed answer degrades gracefully instead of crashing.
 3. **Your words can't hijack the room.** All user-supplied content is fenced with an instruction hierarchy (`fence_untrusted` in `context.py`) before it reaches an agent.
-4. **The high-signal logic is tested without a network.** `api/tests/test_pure_logic.py` pins the gate's deterministic verdicts, the injection fence, the structured-output retry/fallback contract, the topological beat-ordering (cycles, self-loops, disconnected nodes), the code-derived pacing insights, and every response schema — **81 tests, all passing, no network.**
+4. **The high-signal logic is tested without a network.** `api/tests/` pins the gate's deterministic verdicts, the injection fence, the structured-output retry/fallback contract, the topological beat-ordering (cycles, self-loops, disconnected nodes), the code-derived pacing insights, the voice-drift arithmetic, and every response schema — **306 tests, all passing, no network, ~4s.**
 5. **Structural judgment is computed, not asked.** The pacing analytics route (`/analytics/tension`) asks the model only for per-beat tension numbers, then derives climax placement, flat-stretch detection, and overall arc shape in `app/orchestration/ordering.py` — the same principle as the debate gate, applied to story structure.
+6. **A locked voice is enforced by arithmetic.** Character voice lock measures 14 style axes from a character's own dialogue in pure Python (`app/orchestration/voice.py`). Granite is allowed to *name* the register it finds; it never scores one. During a debate the Character Lead measures the draft against those numbers and **floors its verdict at the measured one** — so a wholesale register change is a REJECT no model can talk down, and a sample too thin to judge is reported as unmeasured rather than guessed at.
 
 ---
 
@@ -321,6 +343,7 @@ IBM-Bob/
 │   │   │   ├── personas.py       # 7 agent system prompts
 │   │   │   ├── context.py        # spatial context + injection fence
 │   │   │   ├── structured.py     # structured output w/ retry + repair
+│   │   │   ├── voice.py          # 14-axis voice fingerprint + drift math (no model)
 │   │   │   └── ordering.py       # topological ordering + code-derived pacing insights
 │   │   └── routes/
 │   │       ├── agent.py          # /agent/invoke, /agent/stream
@@ -331,8 +354,9 @@ IBM-Bob/
 │   │       ├── transform.py      # /transform/tone
 │   │       ├── scene_image.py    # /scene-image/generate
 │   │       ├── analytics.py      # /analytics/tension
+│   │       ├── voice.py          # /voice/lock, /voice/check
 │   │       └── generate.py       # /api/generate, /api/model-info
-│   ├── tests/                    # 81 tests, no network
+│   ├── tests/                    # 306 tests, no network
 │   └── pyproject.toml
 ├── web/                          # Next.js frontend
 │   ├── app/
@@ -341,17 +365,18 @@ IBM-Bob/
 │   │   ├── room/[id]/page.tsx    # the canvas room
 │   │   ├── signin/ signup/       # auth pages
 │   │   ├── pricing/page.tsx
-│   │   └── api/                  # NextAuth + Story Bible routes
+│   │   └── api/                  # NextAuth + Story Bible + voice-lock routes
 │   ├── components/
 │   │   ├── canvas/               # canvas, agent dock, chat, bible, pitch,
 │   │   │                         #   coverage, production, transform, export,
-│   │   │                         #   tension/pacing chart, story-card node (critic scorecard)
+│   │   │                         #   voice lock, tension/pacing chart,
+│   │   │                         #   story-card node (critic scorecard)
 │   │   ├── landing/              # navbar, footer, vapour accent, demo button
 │   │   └── ui/                   # sign-in card, vapour effect, toast
 │   ├── public/                   # banner.svg (1920×600) + og-image.svg (1200×630, OG/social)
-│   ├── lib/                      # api, bible, pitch, coverage, breakdown, analytics, embeddings
+│   ├── lib/                      # api, bible, voice, pitch, coverage, breakdown, analytics, embeddings
 │   ├── hooks/                    # useStoryRoom (Liveblocks storage)
-│   ├── prisma/schema.prisma      # User, Room, StoryNode, StoryFact (embeddings)
+│   ├── prisma/schema.prisma      # User, Room, StoryNode, StoryFact (embeddings), VoiceFingerprint
 │   └── middleware.ts             # auth + cookie demo mode
 ├── docker-compose.yml            # one-command local stack (db + api + web)
 ├── render.yaml                   # backend deploy (Render)
@@ -366,10 +391,10 @@ IBM-Bob/
 ## 🗺️ Roadmap
 
 **Shipped**
-Debate loop (7 agents, LangGraph, streaming SSE) · spatial canvas (4 node types, semantic edges, on-node critic scorecard) · Story Bible (RAG) · multi-turn agent chat · tone/genre transfer · **coverage report** · Director's Cut (PDF/Fountain/FDX/text) · pitch deck · character + scene/shot-list breakdowns · cinematic image prompts · auth + cookie demo mode · real-time collaborative canvas · guided seed rooms ·64 no-network tests · CI · Docker Compose · deploy configs.
+Debate loop (7 agents, LangGraph, streaming SSE) · spatial canvas (4 node types, semantic edges, on-node critic scorecard) · Story Bible (RAG) · multi-turn agent chat · tone/genre transfer · **coverage report** · **character voice lock (14-axis fingerprint, enforced by the Character Lead in code)** · pacing/tension analytics chart · Director's Cut (PDF/Fountain/FDX/text) · pitch deck · character + scene/shot-list breakdowns · cinematic image prompts · auth + cookie demo mode · real-time collaborative canvas · guided seed rooms · 306 no-network tests · CI · Docker Compose · deploy configs.
 
 **Post-challenge (ambition)**
-Voice-lock (character voice fingerprint the Character critic enforces) · pacing/tension analytics chart · version history (canvas snapshots) · mobile-responsive canvas · PWA/offline · billing (Stripe) · collaboration suite (comments, approvals, @mentions) · integrations (Notion, Google Docs, Slack) · accessibility audit (WCAG 2.1 AA) · i18n · template marketplace · multi-format story support (novel/comic/game).
+Version history (canvas snapshots) · mobile-responsive canvas · PWA/offline · billing (Stripe) · collaboration suite (comments, approvals, @mentions) · integrations (Notion, Google Docs, Slack) · accessibility audit (WCAG 2.1 AA) · i18n · template marketplace · multi-format story support (novel/comic/game).
 
 ---
 

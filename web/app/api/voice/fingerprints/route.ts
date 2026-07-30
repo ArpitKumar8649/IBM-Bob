@@ -8,6 +8,7 @@ import { ensureRoom } from "@/lib/room";
  *
  * POST   /api/voice/fingerprints                     — upsert a locked voice
  * GET    /api/voice/fingerprints?roomId=             — list a room's voices (no metrics)
+ * GET    /api/voice/fingerprints?roomId=&full=1      — list them with the judging payload
  * GET    /api/voice/fingerprints?roomId=&character=  — one voice, with metrics
  * DELETE /api/voice/fingerprints?roomId=&character=  — remove one voice
  *
@@ -102,6 +103,13 @@ export async function GET(request: Request) {
 
     // The list view omits metrics the way /api/bible/facts omits embedding:
     // it is a 14-key blob per row and the UI only needs the label + confidence.
+    //
+    // `full=1` opts back in, because one caller does need every row's judging
+    // payload at once: the debate posts a room's locks to /agent/stream so the
+    // Character Lead can measure the draft against them. Doing that with the
+    // single-voice read would be one round trip per locked character on every
+    // generation.
+    const full = searchParams.get("full") === "1";
     const voices = await prisma.voiceFingerprint.findMany({
       where: { roomId },
       orderBy: { lockedAt: "desc" },
@@ -114,6 +122,7 @@ export async function GET(request: Request) {
         sampleLines: true,
         sampleTokens: true,
         lockedAt: true,
+        ...(full ? { metrics: true, signaturePhrases: true, neverSays: true } : {}),
       },
     });
 

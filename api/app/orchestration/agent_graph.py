@@ -31,6 +31,16 @@ focused critique. ``merge`` combines them; ``gate`` decides APPROVE/REJECT. On
 REJECT the Reviser rewrites using the merged feedback and we re-critique, up to
 ``max_revisions`` times.
 
+The Character Lead is the one critic that is not purely a model opinion. Before
+its model call, :func:`measure_draft_voices` compares the draft's dialogue
+against the fingerprints the writer locked (``locked_voices`` in state) using
+:mod:`app.orchestration.voice` — pure arithmetic, no tokens spent. The findings
+enter the prompt as settled fact, and :func:`_apply_voice_floor` floors the
+returned verdict at the measured one: the model may judge more harshly (it sees
+motive and arc, which no metric does) but it cannot talk a measured blocker down
+to an approval. A room with no locks measures nothing and the critic behaves
+exactly as it did before.
+
 Everything is backend-agnostic: agents call ``get_chat_model(...)`` which
 returns ChatWatsonx (watsonx.ai, IBM Granite) or ChatOllama (local Granite)
 based on ``MODEL_BACKEND``. The loop runs async (``ainvoke``) so the
@@ -56,6 +66,16 @@ from app.orchestration.context import (
     system_prompt_with_guard,
 )
 from app.orchestration.structured import invoke_structured, safe_json_dumps
+from app.orchestration.voice import (
+    VoiceDriftReport,
+    aggregate_reports,
+    evaluate_voice,
+    find_dialogue_for,
+    join_dialogue,
+    severity_rejects,
+    speaking_reports,
+    worst_severity,
+)
 
 logger = logging.getLogger("writers_room.agents")
 
@@ -145,6 +165,22 @@ class CriticResult(TypedDict):
     severity: Literal["blocker", "major", "minor", "ok"]
 
 
+class LockedVoice(TypedDict):
+    """One character's locked fingerprint, as stored by ``/api/voice/fingerprints``.
+
+    A ``TypedDict`` with ``total=False`` semantics in practice: every field is read
+    through ``.get`` because these rows arrive from Postgres via the browser and a
+    row locked by an older build may be missing keys. ``metrics`` is the 14-axis
+    blob; :func:`evaluate_voice` absorbs a malformed one as "insufficient sample"
+    rather than raising.
+    """
+
+    character: str
+    metrics: dict
+    never_says: NotRequired[list[str]]
+    signature_phrases: NotRequired[list[str]]
+
+
 def _merge_critic_results(
     existing: list[CriticResult] | None,
     update: list[CriticResult] | None,
@@ -167,6 +203,11 @@ class AgentState(TypedDict):
     # RAG context: relevant story-bible facts, treated as canon by the agents.
     story_bible: str
     proposed_nodes: list[dict]
+    # Fingerprints the writer has locked for this room. Read-only for the graph:
+    # the Character Lead measures the draft against them and never writes back.
+    # Absent or empty means the room has no locks yet, and the critic falls back
+    # to its unaided judgement.
+    locked_voices: NotRequired[list[LockedVoice]]
     # Canonical merge of all critics' verdicts for the current draft.
     decision: NotRequired[Literal["APPROVE", "REJECT"] | None]
     # Merged, ranked critique feedback the Reviser acts on.
@@ -231,6 +272,135 @@ def architect_agent(state: AgentState) -> dict:
     }
 
 
+# --- The measured half of the Character Lead ------------------------------- #
+#
+# Everything below runs in pure Python, before the Character Lead's model call.
+# It is the project's trust thesis applied to the debate: the one verdict in the
+# room that does not depend on a model's opinion of its own output.
+# --------------------------------------------------------------------------- #
+
+# How much measured evidence to hand the model. Enough to explain a rejection,
+# short enough not to crowd the draft out of the prompt.
+_MAX_VOICE_EVIDENCE = 4
+
+
+def _draft_text(nodes: list[dict] | None) -> str:
+    """Every word of prose in a draft, where its dialogue lives.
+
+    Reads ``content`` off the node dicts the Architect and Reviser produce
+    (``NodeData.model_dump()``), not the React Flow ``data`` envelope that
+    ``routes/voice.py`` harvests from — the draft never goes through the browser.
+    """
+    parts: list[str] = []
+    for node in nodes or []:
+        if not isinstance(node, dict):
+            continue
+        content = str(node.get("content") or "").strip()
+        if content:
+            parts.append(content)
+    return "\n\n".join(parts)
+
+
+def measure_draft_voices(
+    proposed_nodes: list[dict] | None,
+    locked_voices: list[LockedVoice] | None,
+) -> list[VoiceDriftReport]:
+    """Judge each locked character's dialogue in the draft against their lock.
+
+    One report per locked character who actually speaks in the draft. A character
+    with no attributable lines is skipped entirely rather than reported as
+    unjudged: they are not in this scene, which is not a finding.
+
+    Pure and total. ``find_dialogue_for`` prefers missing a line to guessing at
+    one, and ``evaluate_voice`` never raises — so the worst case is silence, and
+    silence leaves the model's own judgement untouched.
+    """
+    text = _draft_text(proposed_nodes)
+    if not text:
+        return []
+
+    reports: list[VoiceDriftReport] = []
+    for voice in locked_voices or []:
+        if not isinstance(voice, dict):
+            continue
+        name = str(voice.get("character") or "").strip()
+        metrics = voice.get("metrics")
+        if not name or not isinstance(metrics, dict):
+            continue
+
+        lines = find_dialogue_for(text, name)
+        if not lines:
+            continue
+
+        reports.append(
+            evaluate_voice(
+                join_dialogue(lines),
+                metrics,
+                character=name,
+                never_says=[str(t) for t in (voice.get("never_says") or [])],
+                signature_phrases=[str(p) for p in (voice.get("signature_phrases") or [])],
+            )
+        )
+    return reports
+
+
+def _voice_evidence_block(reports: list[VoiceDriftReport]) -> str:
+    """The measurement, as trusted prompt text for the Character Lead.
+
+    Not fenced as untrusted data: unlike the canvas, these strings are built by
+    :func:`summarize_drift` from numbers this process computed, so they are ours.
+    The model is told the verdict is already decided and asked to explain and
+    extend it — never to overturn it, which it cannot do anyway (see
+    :func:`_apply_voice_floor`).
+    """
+    speaking = speaking_reports(reports)
+    if not speaking:
+        return ""
+
+    lines = [
+        f"- {r.summary}" + ("" if r.judged else f" (not measured: {r.reason})")
+        for r in speaking[:_MAX_VOICE_EVIDENCE]
+    ]
+    return (
+        "\n\n[measured voice drift — computed in code from the writer's locked "
+        "fingerprints, not a model opinion. These findings are already final and "
+        "are part of your verdict; cite them, add what they cannot see (motive, "
+        "arc, subtext), and never contradict or dismiss them]\n" + "\n".join(lines)
+    )
+
+
+def _apply_voice_floor(result: CriticResult, reports: list[VoiceDriftReport]) -> CriticResult:
+    """Floor the Character Lead's verdict at the measured one.
+
+    The model may make the verdict *worse* — it sees motive and arc, which no
+    metric does — but it cannot make it better than the measurement. A blocker or
+    major drift therefore rejects the round through ``merge_agent``'s existing
+    ``has_blocking`` rule even when the model wrote APPROVE, and the measured
+    evidence is prepended to the feedback so the Reviser reads the reason for the
+    rejection first.
+
+    A minor measurement does not reject, matching :func:`severity_rejects`: voice
+    has legitimate range, and a panel that rejects every slightly-off line trains
+    the writer to ignore it. The finding still rides along in the feedback.
+    """
+    severity, note = aggregate_reports(reports)
+    if not speaking_reports(reports):
+        return result
+
+    floored = worst_severity(result["severity"], severity)
+    decision = result["decision"]
+    if severity_rejects(severity):
+        decision = "REJECT"
+        logger.info("Character Lead: measured voice drift (%s) forces REJECT", severity)
+
+    return {
+        "critic": result["critic"],
+        "decision": decision,
+        "feedback": f"Measured voice drift: {note}\n{result['feedback']}",
+        "severity": floored,
+    }
+
+
 # --- The four specialist critics (run in parallel) ------------------------- #
 
 _CRITIC_DEFS: dict[str, tuple[str, str]] = {
@@ -239,7 +409,13 @@ _CRITIC_DEFS: dict[str, tuple[str, str]] = {
         "and arc consistency. Does each character act from a believable motive? Is "
         "the voice distinct, or generic? Flag characters acting out of convenience.",
         "Reject if a protagonist's action contradicts an established motive with no "
-        "setup. Minor: voice drift. Approve if character logic holds.",
+        "setup. Minor: voice drift. Approve if character logic holds.\n"
+        "When a measured voice-drift block is present it is arithmetic from the "
+        "writer's own locked fingerprints, computed before you were called. Treat it "
+        "as established fact: quote it as your evidence, and judge the things it "
+        "cannot measure — motive, arc, subtext, whether a character is acting out of "
+        "authorial convenience. Do not re-litigate a measurement or claim a drifted "
+        "line sounds fine.",
     ),
     "world": (
         "You are The World Builder. You judge ONLY setting, lore, and internal rules. "
@@ -265,12 +441,29 @@ _CRITIC_DEFS: dict[str, tuple[str, str]] = {
 }
 
 
-def _make_critic(name: str, persona: str, extra: str):
-    """Build a critic node function. Each critic reads the full canvas + draft."""
+def _make_critic(name: str, persona: str, extra: str, *, measures_voice: bool = False):
+    """Build a critic node function. Each critic reads the full canvas + draft.
+
+    ``measures_voice`` turns on the Character Lead's measured half: the draft's
+    dialogue is compared against the room's locked fingerprints *before* the model
+    call, the findings ride into the prompt as settled fact, and the model's
+    verdict is floored at the measured one on the way out. The other three critics
+    have nothing to measure, so this is a flag rather than an unconditional step —
+    and with it off the node behaves exactly as it did before voice lock existed.
+    """
 
     def critic(state: AgentState) -> dict:
         logger.info("Critic [%s] reviewing draft round=%d", name, state.get("revision_count", 0))
         llm = get_chat_model(temperature=0.2)  # cool, consistent judgement
+
+        # Measure first: the arithmetic is evidence the model reads, not a second
+        # opinion it weighs. An empty list here (no locks, or nobody speaks) makes
+        # every step below a no-op.
+        reports = (
+            measure_draft_voices(state["proposed_nodes"], state.get("locked_voices"))
+            if measures_voice
+            else []
+        )
 
         system = system_prompt_with_guard(persona, extra)
         draft = safe_json_dumps(state["proposed_nodes"])
@@ -282,6 +475,7 @@ def _make_critic(name: str, persona: str, extra: str):
         )
         user = build_user_prompt(task, state["spatial_context"], state["user_intent"], draft)
         user += _bible_block(state)
+        user += _voice_evidence_block(reports)
 
         # A malformed/failed critic response should not blank a valuable draft.
         # Fail closed instead: tell the Reviser to be conservative and surface
@@ -297,23 +491,22 @@ def _make_critic(name: str, persona: str, extra: str):
         result = invoke_structured(
             llm, CritiqueOutput, system, user, max_attempts=2, fallback=fallback
         )
-        return {
-            "critic_results": [
-                {
-                    "critic": name,
-                    "decision": result.decision,
-                    "feedback": result.feedback,
-                    "severity": result.severity,
-                }
-            ]
+        verdict: CriticResult = {
+            "critic": name,
+            "decision": result.decision,
+            "feedback": result.feedback,
+            "severity": result.severity,
         }
+        # The floor survives even the fallback path above: a measured blocker is
+        # reported whether or not the model managed to answer at all.
+        return {"critic_results": [_apply_voice_floor(verdict, reports)]}
 
     critic.__name__ = f"critic_{name}"
     return critic
 
 
-# Construct the four critic callables.
-critic_character = _make_critic("character", *_CRITIC_DEFS["character"])
+# Construct the four critic callables. Only the Character Lead measures.
+critic_character = _make_critic("character", *_CRITIC_DEFS["character"], measures_voice=True)
 critic_world = _make_critic("world", *_CRITIC_DEFS["world"])
 critic_continuity = _make_critic("continuity", *_CRITIC_DEFS["continuity"])
 critic_tension = _make_critic("tension", *_CRITIC_DEFS["tension"])

@@ -15,6 +15,12 @@
  * against it. Nothing is persisted server-side by FastAPI, and nothing is
  * measured by the Next route.
  *
+ * There is a third path that skips `/voice/check` entirely:
+ * `listVoicesForDebate()` reads every lock in the room and hands it to
+ * `streamAgentDebate`, where the Character Lead measures the generated draft
+ * against them mid-debate. Same arithmetic, applied to the crew's own output
+ * rather than to a line the writer typed.
+ *
  * Field naming follows whichever service owns the shape: snake_case for the
  * FastAPI payloads (`register_label`, `never_says`), camelCase for the Prisma
  * rows (`registerLabel`, `neverSays`). `saveFingerprint` is the one place that
@@ -92,7 +98,8 @@ export interface VoiceCheckResult {
 }
 
 /** A stored fingerprint. `metrics`, `neverSays` and `signaturePhrases` are only
- *  present on the single-character read — the list view omits them. */
+ *  present on the single-character read and on the `full=1` list — the plain list
+ *  view omits them. */
 export interface VoiceFingerprintRow {
   id: string;
   character: string;
@@ -198,11 +205,46 @@ export async function checkVoice(opts: CheckVoiceOptions): Promise<VoiceCheckRes
 
 // ---- Persistence (Next.js API routes) ----
 
+/** A locked fingerprint in the shape the debate expects — snake_case, because
+ *  FastAPI owns `/agent/stream`. Built by {@link listVoicesForDebate}. */
+export interface LockedVoicePayload {
+  character: string;
+  metrics: VoiceMetrics;
+  never_says: string[];
+  signature_phrases: string[];
+}
+
 export async function listVoices(roomId: string): Promise<VoiceFingerprintRow[]> {
   const res = await fetch(`/api/voice/fingerprints?roomId=${encodeURIComponent(roomId)}`);
   if (!res.ok) throw new Error("Failed to load locked voices");
   const data = await res.json();
   return data.voices;
+}
+
+/**
+ * Every lock in the room, converted to what the Character Lead measures against.
+ *
+ * One request, not one per character: `full=1` opts the list view back into the
+ * metrics it normally omits. Rows with no usable metrics are dropped here rather
+ * than posted — the critic would only skip them, and sending them spends request
+ * size on nothing. `displayName` is the name sent, not the lowercased lookup key,
+ * because attribution in the draft is matched against the writer's spelling.
+ */
+export async function listVoicesForDebate(roomId: string): Promise<LockedVoicePayload[]> {
+  const res = await fetch(
+    `/api/voice/fingerprints?roomId=${encodeURIComponent(roomId)}&full=1`
+  );
+  if (!res.ok) throw new Error("Failed to load locked voices");
+  const data = await res.json();
+  const rows: VoiceFingerprintRow[] = data.voices ?? [];
+  return rows
+    .filter((row) => row.metrics && Object.keys(row.metrics).length > 0)
+    .map((row) => ({
+      character: row.displayName || row.character,
+      metrics: row.metrics as VoiceMetrics,
+      never_says: row.neverSays ?? [],
+      signature_phrases: row.signaturePhrases ?? [],
+    }));
 }
 
 /** One stored fingerprint, with the metrics `checkVoice` needs. Null if this

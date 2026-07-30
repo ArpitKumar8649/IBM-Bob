@@ -151,6 +151,20 @@ export type StreamRequest = {
   edges: CanvasEdgePayload[];
   /** RAG context: relevant story-bible facts retrieved by the caller. */
   storyFacts?: { category: string; content: string }[];
+  /**
+   * Locked character fingerprints for this room, from `listVoicesForDebate`.
+   *
+   * The Character Lead measures the generated draft's dialogue against these in
+   * pure Python and cannot be talked out of a rejection by its own model call.
+   * Omit or pass an empty array and the debate is exactly the one that ran
+   * before voice lock existed — the backend measures nothing.
+   */
+  lockedVoices?: {
+    character: string;
+    metrics: Record<string, number>;
+    never_says: string[];
+    signature_phrases: string[];
+  }[];
 };
 
 /**
@@ -174,6 +188,7 @@ export async function streamAgentDebate(
       nodes: request.nodes,
       edges: request.edges,
       story_facts: request.storyFacts ?? [],
+      locked_voices: request.lockedVoices ?? [],
     }),
     signal,
   });

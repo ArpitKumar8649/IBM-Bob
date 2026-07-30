@@ -70,6 +70,31 @@ class StoryFact(BaseModel):
     content: str = Field(..., max_length=2_000)
 
 
+class LockedVoice(BaseModel):
+    """One character's locked voice fingerprint, sent along with the canvas.
+
+    Persistence lives in Next.js (Postgres owns the ``VoiceFingerprint`` rows), so
+    the browser posts the locks it wants enforced on this round. FastAPI stores
+    nothing and trusts nothing here: the Character Lead only ever *measures*
+    against these numbers.
+
+    ``metrics`` is deliberately untyped, mirroring ``VoiceCheckRequest.metrics``.
+    It is the Postgres Json column handed back verbatim, and ``evaluate_voice``
+    absorbs missing, extra, and garbage keys as "insufficient sample". Typing it
+    strictly would let one fingerprint locked by an older build 422 an entire
+    debate round.
+    """
+
+    character: str = Field(..., max_length=80)
+    metrics: dict[str, Any] = Field(default_factory=dict)
+    never_says: list[str] = Field(default_factory=list, max_length=40)
+    signature_phrases: list[str] = Field(default_factory=list, max_length=40)
+
+    def model_post_init(self, __context: Any) -> None:
+        if len(json.dumps(self.metrics, default=str)) > 4_096:
+            raise ValueError("voice metrics must be at most 4096 serialized bytes")
+
+
 class OrchestrateRequest(BaseModel):
     """Shared request body for invoke + stream.
 
@@ -87,6 +112,10 @@ class OrchestrateRequest(BaseModel):
     edges: list[CanvasEdge] = Field(default_factory=list, max_length=120)
     # RAG context: relevant story-bible facts retrieved by the Next.js layer.
     story_facts: list[StoryFact] = Field(default_factory=list, max_length=20)
+    # Locked fingerprints to measure this draft's dialogue against. Optional: an
+    # empty list is the pre-voice-lock behaviour, and every existing caller that
+    # omits it gets exactly the debate it got before.
+    locked_voices: list[LockedVoice] = Field(default_factory=list, max_length=12)
 
 
 class OrchestrateResponse(BaseModel):
@@ -128,6 +157,8 @@ def _initial_state(req: OrchestrateRequest) -> dict[str, Any]:
         "spatial_context": ctx,
         "story_bible": bible,
         "proposed_nodes": [],
+        # Read-only for the graph; the Character Lead measures against these.
+        "locked_voices": [v.model_dump() for v in req.locked_voices],
         "decision": None,
         "critique_feedback": "",
         "critic_results": [],

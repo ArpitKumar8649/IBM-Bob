@@ -696,20 +696,33 @@ def extract_style_metrics(text: str) -> StyleMetrics:
     )
 
 
-def metrics_from_lines(lines: list[str] | None) -> StyleMetrics:
-    """Measure a set of separately-extracted dialogue lines as one sample.
+def join_dialogue(lines: list[str] | None) -> str:
+    """Join separately-extracted dialogue lines into one measurable sample.
 
-    Lines are joined with sentence-final punctuation preserved so the rhythm
-    measurement sees utterance boundaries rather than one run-on sentence. A
-    missing or empty list yields the all-zero metrics, which callers read as
-    "insufficient sample".
+    Sentence-final punctuation is preserved and a bare line gets a period, so the
+    rhythm axes see utterance boundaries instead of one run-on sentence.
+
+    Public because the Character Lead critic needs the same joined text that
+    :func:`metrics_from_lines` measures: :func:`evaluate_voice` takes text rather
+    than metrics, since the hard rules are checked against the words themselves.
+    Two callers joining lines by two slightly different rules would judge the
+    same dialogue against two different rhythms.
     """
-    joined = " ".join(
+    return " ".join(
         line if line.rstrip().endswith((".", "!", "?", "…")) else f"{line.rstrip()}."
         for line in (lines or [])
         if line and line.strip()
     )
-    return extract_style_metrics(joined)
+
+
+def metrics_from_lines(lines: list[str] | None) -> StyleMetrics:
+    """Measure a set of separately-extracted dialogue lines as one sample.
+
+    Joins with :func:`join_dialogue`, so utterance boundaries survive into the
+    rhythm measurement. A missing or empty list yields the all-zero metrics,
+    which callers read as "insufficient sample".
+    """
+    return extract_style_metrics(join_dialogue(lines))
 
 
 # --------------------------------------------------------------------------- #
@@ -924,7 +937,13 @@ def band_for_score(score: int) -> Severity:
     return "ok"
 
 
-def _worst(a: Severity, b: Severity) -> Severity:
+def worst_severity(a: Severity, b: Severity) -> Severity:
+    """The more serious of two severities.
+
+    Public because the debate graph needs the same ordering: the Character Lead
+    floors its model-written verdict at the measured one, and two modules ranking
+    severity by two different rules is how a blocker quietly becomes a nudge.
+    """
     return a if _SEVERITY_RANK[a] >= _SEVERITY_RANK[b] else b
 
 
@@ -996,7 +1015,7 @@ def score_drift(deltas: list[AxisDelta], violations: list[VoiceViolation]) -> tu
     severity = band_for_score(score)
     for v in violations:
         if v.escalates:
-            severity = _worst(severity, v.severity)
+            severity = worst_severity(severity, v.severity)
     return score, severity
 
 
@@ -1079,7 +1098,7 @@ def evaluate_voice(
         """Report with no drift score, but with any hard rule break intact."""
         severity: Severity = "ok"
         for v in hard:
-            severity = _worst(severity, v.severity)
+            severity = worst_severity(severity, v.severity)
         return VoiceDriftReport(
             character=character,
             judged=False,
@@ -1208,8 +1227,19 @@ def can_lock(dialogue_lines: list[str] | None) -> tuple[bool, str | None]:
 _REJECTING_SEVERITIES = frozenset({"blocker", "major"})
 
 
+def severity_rejects(severity: Severity) -> bool:
+    """Whether a measured severity is serious enough to reject a draft.
+
+    The one place the REJECT threshold is written down. Both adapters below and
+    the Character Lead critic in :mod:`app.orchestration.agent_graph` ask this
+    rather than comparing severities themselves, so moving the line moves it
+    everywhere at once.
+    """
+    return severity in _REJECTING_SEVERITIES
+
+
 def to_critic_result(report: VoiceDriftReport, *, critic: str = "character") -> dict[str, Any]:
-    """Shape a drift report as a critic verdict for the debate graph.
+    """Shape a *single* drift report as a critic verdict for the debate graph.
 
     Structurally a ``CriticResult`` (critic / decision / feedback / severity) —
     built as a plain dict rather than importing the TypedDict, so this module
@@ -1218,13 +1248,33 @@ def to_critic_result(report: VoiceDriftReport, *, critic: str = "character") -> 
     The decision is computed here, in code, from the measured severity: this is
     the one critic in the room whose verdict does not depend on a model's opinion
     of its own output.
+
+    A draft with several speaking characters produces several reports; the graph
+    rolls those up with :func:`aggregate_reports` and applies
+    :func:`severity_rejects` to the combined severity instead of calling this
+    once per character.
     """
     return {
         "critic": critic,
-        "decision": "REJECT" if report.severity in _REJECTING_SEVERITIES else "APPROVE",
+        "decision": "REJECT" if severity_rejects(report.severity) else "APPROVE",
         "feedback": report.summary,
         "severity": report.severity,
     }
+
+
+def speaking_reports(reports: list[VoiceDriftReport] | None) -> list[VoiceDriftReport]:
+    """The reports that actually carry information.
+
+    A report is worth repeating if the statistical comparison ran (``judged``) or
+    if a hard rule broke (``severity != "ok"``). Everything else is a locked voice
+    that had nothing to say about this draft, and forwarding it would pad the
+    critic's evidence with "not enough dialogue to judge" filler.
+
+    Public so the debate graph can ask "did the measurement say anything at all?"
+    using the same rule :func:`aggregate_reports` uses to build the note — two
+    definitions of "said nothing" is how a silent verdict becomes a visible one.
+    """
+    return [r for r in (reports or []) if r.judged or r.severity != "ok"]
 
 
 def aggregate_reports(reports: list[VoiceDriftReport] | None) -> tuple[Severity, str]:
@@ -1236,13 +1286,13 @@ def aggregate_reports(reports: list[VoiceDriftReport] | None) -> tuple[Severity,
     judged *and* carry no rule break are dropped from the note entirely, so the
     critic's evidence never includes "not enough dialogue to judge" filler.
     """
-    speaking = [r for r in (reports or []) if r.judged or r.severity != "ok"]
+    speaking = speaking_reports(reports)
     if not speaking:
         return "ok", "No locked voices to check against this draft."
 
     severity: Severity = "ok"
     for r in speaking:
-        severity = _worst(severity, r.severity)
+        severity = worst_severity(severity, r.severity)
 
     ranked = sorted(speaking, key=lambda r: (-_SEVERITY_RANK[r.severity], -r.score))
     return severity, " ".join(r.summary for r in ranked)

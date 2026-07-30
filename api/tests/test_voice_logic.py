@@ -25,6 +25,10 @@ What is pinned, in rough order of how badly a regression would hurt:
 * **The verdict reaches the panel.** A measured blocker, converted to a critic
   result, rejects a round in ``merge_agent`` against three approvals — the point
   of measuring rather than polling.
+* **The rules are written once.** The line-join, severity ordering, reject
+  threshold, and "said nothing" filter that ``agent_graph`` borrows are pinned
+  here, so a second implementation over there cannot quietly disagree
+  (:class:`TestSharedRules`). The wiring itself lives in ``test_voice_critic``.
 
 Run with: ``cd api && uv run pytest -q``.
 """
@@ -33,6 +37,7 @@ from __future__ import annotations
 
 import json
 import math
+from dataclasses import replace
 
 import pytest
 
@@ -61,11 +66,15 @@ from app.orchestration.voice import (
     extract_style_metrics,
     find_dialogue,
     find_dialogue_for,
+    join_dialogue,
     metrics_from_lines,
     score_drift,
+    severity_rejects,
+    speaking_reports,
     split_sentences,
     to_critic_result,
     tokenize,
+    worst_severity,
 )
 
 # --------------------------------------------------------------------------- #
@@ -899,3 +908,79 @@ class TestCriticIntegration:
     def test_nothing_locked_is_not_an_error(self):
         assert aggregate_reports([]) == ("ok", "No locked voices to check against this draft.")
         assert aggregate_reports(None) == ("ok", "No locked voices to check against this draft.")
+
+
+class TestSharedRules:
+    """The four rules the debate graph borrows instead of re-deriving.
+
+    ``agent_graph`` imports these rather than writing its own line-join, severity
+    ordering, reject threshold, or "said nothing" filter. Each is trivial, which
+    is exactly why a second implementation would look reasonable and disagree in
+    one case — so the rule is pinned here, once, and both callers inherit it.
+    """
+
+    def test_join_dialogue_is_what_metrics_from_lines_measures(self):
+        lines = ["I don't ask", "I move the crate", "That's the deal."]
+        assert metrics_from_lines(lines) == extract_style_metrics(join_dialogue(lines))
+
+    def test_join_dialogue_keeps_utterance_boundaries(self):
+        """Without the added period the rhythm axes see one run-on sentence."""
+        assert join_dialogue(["I don't ask", "I move the crate"]) == (
+            "I don't ask. I move the crate."
+        )
+
+    @pytest.mark.parametrize("end", [".", "!", "?", "…"])
+    def test_join_dialogue_does_not_double_punctuate(self, end):
+        assert join_dialogue([f"Fine{end}"]) == f"Fine{end}"
+
+    @pytest.mark.parametrize("lines", [None, [], [""], ["   "], [None]])
+    def test_join_dialogue_has_nothing_to_join(self, lines):
+        assert join_dialogue(lines) == ""
+
+    def test_worst_severity_ranks_ok_below_blocker(self):
+        order = ["ok", "minor", "major", "blocker"]
+        for i, low in enumerate(order):
+            for high in order[i:]:
+                assert worst_severity(low, high) == high
+                assert worst_severity(high, low) == high
+
+    def test_worst_severity_of_a_severity_with_itself_is_itself(self):
+        for s in ("ok", "minor", "major", "blocker"):
+            assert worst_severity(s, s) == s
+
+    def test_severity_rejects_draws_the_line_at_major(self):
+        """A major is a wholesale register change, not a nudge — it rejects.
+
+        Moving this line moves it for the adapters and the Character Lead at once,
+        which is the reason the threshold lives in one function.
+        """
+        assert severity_rejects("blocker") is True
+        assert severity_rejects("major") is True
+        assert severity_rejects("minor") is False
+        assert severity_rejects("ok") is False
+
+    def test_severity_rejects_agrees_with_the_critic_adapter(self):
+        for severity in ("ok", "minor", "major", "blocker"):
+            report = evaluate_voice(MARCUS, _lock(MARCUS), character="Marcus")
+            decision = to_critic_result(replace(report, severity=severity))["decision"]
+            assert (decision == "REJECT") is severity_rejects(severity)
+
+    def test_speaking_reports_keeps_a_judged_report(self):
+        judged = evaluate_voice(MARCUS, _lock(MARCUS), character="Marcus")
+        assert speaking_reports([judged]) == [judged]
+
+    def test_speaking_reports_keeps_an_unjudged_report_that_broke_a_rule(self):
+        blocker = evaluate_voice(
+            "Pure synergy.", _lock(MARCUS), character="Marcus", never_says=["synergy"]
+        )
+        assert blocker.judged is False
+        assert speaking_reports([blocker]) == [blocker]
+
+    def test_speaking_reports_drops_an_unjudged_clean_report(self):
+        quiet = evaluate_voice("Too short.", _lock(MARCUS), character="Marcus")
+        assert (quiet.judged, quiet.severity) == (False, "ok")
+        assert speaking_reports([quiet]) == []
+
+    @pytest.mark.parametrize("reports", [None, []])
+    def test_speaking_reports_tolerates_nothing_at_all(self, reports):
+        assert speaking_reports(reports) == []

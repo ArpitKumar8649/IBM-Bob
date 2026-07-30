@@ -19,6 +19,7 @@ from threading import Lock
 from pydantic import BaseModel
 
 from app.orchestration.agent_graph import CritiqueOutput, SpatialGeneration
+from app.orchestration.voice import extract_style_metrics
 
 
 class _StructuredRunnable:
@@ -87,6 +88,75 @@ def critic_result(
     feedback: str = "ok",
 ) -> CritiqueOutput:
     return CritiqueOutput(decision=decision, feedback=feedback, severity=severity)  # type: ignore[arg-type]
+
+
+# --- Voice-lock fixtures --------------------------------------------------- #
+#
+# The Character Lead's measured half needs two things nothing else here does: a
+# draft whose node content carries *attributed* dialogue, and a locked
+# fingerprint to measure it against. The lock is measured from the sample rather
+# than hand-written, so these stay honest if the metric set ever changes.
+# --------------------------------------------------------------------------- #
+
+# A dock smuggler: clipped, contraction-heavy, first person. The same voice
+# ``test_voice_logic`` calibrates against, duplicated here so a graph test never
+# has to import from a sibling test module.
+MARCUS_SAMPLE = """\
+Cargo's cargo. I don't ask what's in the crates and they don't ask where I've been.
+That's the deal. You want it moved, I move it. You want questions answered, find a priest.
+Ain't no cop out here past the third ring. Just me, and the debt I'm workin' off.
+"""
+
+# Marcus, still Marcus. Prose attribution ("Marcus ... says,") is what
+# ``find_dialogue_for`` needs to claim the quote for him.
+MARCUS_IN_VOICE_BEAT = (
+    "The freighter's ramp hisses open. Marcus spits into the dark and says, "
+    "\"I don't ask what's in the crates. You want it moved, I move it. That's "
+    "the deal, and it ain't changin' tonight.\" Dana counts the manifest twice."
+)
+
+# The same beat after a model forgot who was speaking — a wholesale register
+# change, and it reaches for a word the writer marked as one he never says. This
+# is the exact regression voice lock exists to catch.
+MARCUS_DRIFTED_BEAT = (
+    "The freighter's ramp hisses open. Marcus straightens his jacket and says, "
+    '"I would like to propose that we leverage our collective synergy in order to '
+    "facilitate a comprehensive reassessment of the logistical framework, assuming "
+    'the documentation is available for review." Dana counts the manifest twice.'
+)
+
+
+def locked_marcus(**overrides: object) -> dict:
+    """Marcus's locked fingerprint, in the wire shape the graph reads.
+
+    Keyword overrides let a test add ``never_says`` / ``signature_phrases`` or
+    corrupt ``metrics`` without rebuilding the dict.
+    """
+    voice: dict = {
+        "character": "Marcus",
+        # ``as_dict`` is the same serializer persistence uses, so the fixture is
+        # the shape a real Prisma row holds rather than a hand-made lookalike.
+        "metrics": extract_style_metrics(MARCUS_SAMPLE).as_dict(),
+        "never_says": [],
+        "signature_phrases": [],
+    }
+    voice.update(overrides)
+    return voice
+
+
+def architect_speaking(content: str, label: str = "The Handoff") -> SpatialGeneration:
+    """An Architect draft whose one node contains the given prose verbatim."""
+    return SpatialGeneration(
+        nodes=[
+            {
+                "label": label,
+                "content": content,
+                "node_type": "plot_beat",
+                "relative_x": 0.0,
+                "relative_y": 300.0,
+            }
+        ]
+    )
 
 
 def patch_chat_model(monkeypatch, responses: Sequence[BaseModel | str]) -> None:
