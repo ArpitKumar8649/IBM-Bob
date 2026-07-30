@@ -38,9 +38,13 @@ class Settings(BaseSettings):
     ollama_model_id: str = "granite3.3"
 
     # ---- DashScope (Alibaba Qwen) — for image generation ----
+    # Verified live against this key's account (July 2026): the key is an
+    # international (Singapore) account key, so it authenticates against the
+    # -intl host only, and that region serves the wan2.2 model family — the
+    # older `wanx2.1-*` ids return "Model not exist" there.
     dashscope_api_key: str = ""
-    dashscope_image_model_id: str = "wanx2.1-t2i-turbo"  # or wanx2.1-t2i-plus for higher quality
-    dashscope_base_url: str = "https://dashscope.aliyuncs.com/api/v1"
+    dashscope_image_model_id: str = "wan2.2-t2i-flash"  # or wan2.2-t2i-plus for higher quality
+    dashscope_base_url: str = "https://dashscope-intl.aliyuncs.com/api/v1"
 
     # ---- API server ----
     api_host: str = "0.0.0.0"

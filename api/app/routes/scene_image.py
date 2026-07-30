@@ -1,7 +1,7 @@
-"""AI scene image generation via Alibaba DashScope (Qwen / Wan2.1).
+"""AI scene image generation via Alibaba DashScope (Qwen / Wan).
 
 ``POST /scene-image/generate`` takes a cinematic image prompt (written by
-Granite in the scene breakdown) and renders it with DashScope's Wan2.1
+Granite in the scene breakdown) and renders it with DashScope's Wan
 text-to-image model.
 
 DashScope's image API is asynchronous: you submit a task, then poll until it
@@ -12,6 +12,14 @@ The two-step design: Granite writes the prompt (story-aware), Qwen/Wan renders
 it. This keeps the LLM (IBM Granite) and the image model (Qwen) cleanly
 separated, and the prompt is always surfaced even if image generation is
 unavailable.
+
+Region note: DashScope runs two independent regions with different model
+catalogs. An international (Singapore) key authenticates only against
+``dashscope-intl.aliyuncs.com`` and serves the ``wan2.2-*`` family; a
+mainland-China key uses ``dashscope.aliyuncs.com`` with ``wanx2.1-*``. Both
+the host and the model id are configurable — see ``DASHSCOPE_BASE_URL`` and
+``DASHSCOPE_IMAGE_MODEL_ID``. Pointing a key at the wrong region fails with
+``InvalidApiKey`` even when the key is perfectly valid.
 """
 
 from __future__ import annotations
@@ -57,7 +65,7 @@ class SceneImageResponse(BaseModel):
 
 @router.post("/generate", response_model=SceneImageResponse)
 async def generate_scene_image(req: SceneImageRequest) -> SceneImageResponse:
-    """Render a scene image prompt with DashScope's Wan2.1 text-to-image model."""
+    """Render a scene image prompt with DashScope's Wan text-to-image model."""
     if not settings.dashscope_api_key:
         return SceneImageResponse(
             status="no_key",
