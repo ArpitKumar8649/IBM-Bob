@@ -42,5 +42,12 @@ coverage/
 
 # ---- Dev artifacts ----
 *.patch
-lastsession_*.txt
 *.orig
+
+# ---- Agent/session transcripts ----
+# These dumps routinely contain pasted credentials (DB URLs, API keys).
+# Never commit them: a `git add .` would publish live secrets.
+lastsession_*.txt
+prevworks_*.txt
+*_chat.txt
+*_conv.txt

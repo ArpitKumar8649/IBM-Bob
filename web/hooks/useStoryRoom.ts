@@ -35,6 +35,8 @@ function toStoryNode(stored: StoredNode): StoryNode {
       sequence: stored.data.sequence,
       node_type: (stored.data.node_type as StoryNode["data"]["node_type"]) || "plot_beat",
       proposed: stored.data.proposed,
+      critic_scores: stored.data.critic_scores as StoryNode["data"]["critic_scores"],
+      gate: stored.data.gate as StoryNode["data"]["gate"],
     },
   };
 }

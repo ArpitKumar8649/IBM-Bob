@@ -11,6 +11,12 @@ import type { LiveList, LiveObject } from "@liveblocks/client";
  * kept as plain serializable records so they round-trip through storage.
  */
 
+export type StoredCriticScore = {
+  critic: string;
+  decision: string;
+  severity: string;
+};
+
 export type StoredNodeData = {
   title: string;
   content: string;
@@ -18,6 +24,10 @@ export type StoredNodeData = {
   node_type?: string;
   proposed?: boolean;
   loading?: boolean;
+  /** The four critics' verdicts from the debate that produced this node. */
+  critic_scores?: StoredCriticScore[];
+  /** The Devil's Advocate gate verdict for the debate that produced this node. */
+  gate?: string;
 };
 
 export type StoredNode = {

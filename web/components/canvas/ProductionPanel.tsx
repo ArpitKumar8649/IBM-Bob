@@ -413,13 +413,18 @@ export default function ProductionPanel({
                               </div>
                             </div>
 
-                            {/* Image prompt + AI generation */}
+                            {/* Cinematic image prompt + optional in-app render.
+                                The prompt is the always-working artifact: it is
+                                shown and copyable regardless of whether an image
+                                model is configured, so this step never blocks the
+                                writer. In-app rendering (Qwen/Wan via DashScope)
+                                is an optional bonus on top. */}
                             <div className="rounded-lg bg-gradient-to-br from-rose-500/10 to-wine-950 border border-rose-400/20 p-3">
                               <div className="flex items-center justify-between mb-1.5">
                                 <div className="flex items-center gap-1.5">
                                   <ImageIcon size={13} className="text-rose-300" />
                                   <span className="text-rose-300 text-[11px] uppercase tracking-wider">
-                                    AI Image Prompt
+                                    Cinematic image prompt
                                   </span>
                                 </div>
                                 <button
@@ -429,11 +434,11 @@ export default function ProductionPanel({
                                 >
                                   {sceneImages[s.scene_number] === "loading" ? (
                                     <>
-                                      <Loader2 size={11} className="animate-spin" /> Generating…
-                                   </>
+                                      <Loader2 size={11} className="animate-spin" /> Rendering…
+                                    </>
                                   ) : (
                                     <>
-                                      <ImageIcon size={11} /> Generate image
+                                      <ImageIcon size={11} /> Render in-app
                                     </>
                                   )}
                                 </button>
@@ -442,7 +447,21 @@ export default function ProductionPanel({
                                 {s.image_prompt}
                               </p>
 
-                              {/* Rendered image / status */}
+                              {/* The prompt is always copyable — the real,
+                                  model-agnostic deliverable. */}
+                              <div className="flex items-center gap-2 mb-2">
+                                <button
+                                  onClick={() => copy(s.image_prompt)}
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-rose-400/25 text-rose-100/80 text-[11px] font-medium hover:bg-rose-400/10 transition-colors"
+                                >
+                                  <Copy size={11} /> Copy prompt
+                                </button>
+                                <span className="text-[10px] text-rose-100/40">
+                                  Paste into Midjourney, FLUX, or Replicate
+                                </span>
+                              </div>
+
+                              {/* Rendered concept art when an image model succeeds. */}
                               {sceneImages[s.scene_number] &&
                                 sceneImages[s.scene_number] !== "loading" &&
                                 !sceneImages[s.scene_number].startsWith("error:") && (
@@ -452,10 +471,19 @@ export default function ProductionPanel({
                                     className="w-full rounded-lg border border-rose-400/20 mt-1"
                                   />
                                 )}
+
+                              {/* Friendly "render unavailable" note — a usable
+                                  state, not an error: the prompt above is ready. */}
                               {sceneImages[s.scene_number]?.startsWith("error:") && (
-                                <p className="text-[11px] text-rose-300/70 bg-wine-950/60 rounded px-2 py-1.5">
-                                  {sceneImages[s.scene_number].replace("error:", "")}
-                               </p>
+                                <div className="flex items-start gap-2 rounded-md bg-amber-400/10 border border-amber-400/25 px-2.5 py-2 mt-1">
+                                  <ImageIcon size={13} className="text-amber-300 shrink-0 mt-0.5" />
+                                  <p className="text-[11px] text-amber-200/80 leading-relaxed">
+                                    In-app rendering needs{" "}
+                                    <code className="font-mono text-amber-200">DASHSCOPE_API_KEY</code>.
+                                    The prompt above is ready to paste into any image
+                                    tool — the concept-art step never blocks you.
+                                  </p>
+                                </div>
                               )}
                             </div>
                           </div>

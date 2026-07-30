@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Background,
   BackgroundVariant,
@@ -13,7 +13,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { motion, AnimatePresence } from "framer-motion";
-import { BookOpen, Clapperboard, ClipboardList, MessageSquare, Presentation, Sparkles } from "lucide-react";
+import { Activity, BookOpen, Clapperboard, ClipboardList, FileCheck2, MessageSquare, Presentation, Sparkles } from "lucide-react";
 
 import StoryCardNode from "./nodes/StoryCardNode";
 import StoryEdgeComponent from "./edges/StoryEdge";
@@ -24,6 +24,8 @@ import PitchDeckPanel from "./PitchDeckPanel";
 import ExportModal from "./ExportModal";
 import ProductionPanel from "./ProductionPanel";
 import TransformPanel from "./TransformPanel";
+import CoveragePanel from "./CoveragePanel";
+import TensionPanel from "./TensionPanel";
 import { useToast } from "@/components/ui/Toast";
 import { useStoryRoom } from "@/hooks/useStoryRoom";
 import {
@@ -33,15 +35,118 @@ import {
   type GeneratedStoryNode,
   type StreamEvent,
 } from "@/lib/api";
-import { searchFacts, type StoryFact } from "@/lib/bible";
+import { addFact, searchFacts, type StoryFact } from "@/lib/bible";
 import {
+  CRITIC_ORDER,
   EDGE_STYLES,
+  type CriticKey,
+  type CriticScore,
   type EdgeSemantics,
   type StoryEdge,
   type StoryNode,
   type StoryNodeType,
 } from "@/lib/canvas-types";
 import type { StoredEdge, StoredNode } from "@/liveblocks.config";
+
+// --------------------------------------------------------------------------- //
+// Guided seed — themed starter graphs so an empty room opens *populated* and
+// the very first ✦ click demonstrates a real, contextual debate (kills the
+// cold-start "empty canvas looks unfinished" moment). Only the ids listed here
+// auto-seed; any other empty room stays blank so the writer can start from a
+// premise of their own.
+// --------------------------------------------------------------------------- //
+
+type SeedBeat = { title: string; content: string; type: StoryNodeType };
+
+function makeSeed(
+  beats: SeedBeat[],
+  edgeLabels: EdgeSemantics[],
+  facts: { category: string; content: string }[]
+): { nodes: StoredNode[]; edges: StoredEdge[]; facts: { category: string; content: string }[] } {
+  const nodes: StoredNode[] = beats.map((b, i) => ({
+    id: `seed-${i}`,
+    type: b.type,
+    position: { x: 120 + i * 360, y: 160 },
+    data: { title: b.title, content: b.content, node_type: b.type, sequence: `${i + 1}` },
+  }));
+  const edges: StoredEdge[] = edgeLabels.map((label, i) => ({
+    id: `seed-e-${i}`,
+    source: `seed-${i}`,
+    target: `seed-${i + 1}`,
+    type: "story",
+    label,
+  }));
+  return { nodes, edges, facts };
+}
+
+const GUIDED_SEEDS: Record<
+  string,
+  { nodes: StoredNode[]; edges: StoredEdge[]; facts: { category: string; content: string }[] }
+> = {
+  demo: makeSeed(
+    [
+      { title: "The Awakening", content: "Mira wakes in a locked room with no memory; a terminal counts down to midnight.", type: "plot_beat" },
+      { title: "The Offer", content: "The terminal offers one choice: accept and the doors open, refuse and the room shrinks.", type: "plot_beat" },
+      { title: "Mira", content: "A former systems engineer with a scar on her left hand she can't explain.", type: "character" },
+    ],
+    ["causes", "features"],
+    [
+      { category: "character", content: "Mira has a scar on her left hand from a childhood accident she can't remember." },
+      { category: "location", content: "The locked room is on sub-level 3 of an abandoned research facility." },
+    ]
+  ),
+  "demo-room": undefined as never, // alias resolved below
+  "cyberpunk-heist": makeSeed(
+    [
+      { title: "The Briefing", content: "In a neon-soaked safehouse, a fixer lays out the impossible data-heist.", type: "plot_beat" },
+      { title: "The Crew", content: "A washed-out netrunner is the only one who can crack the black-ice.", type: "character" },
+      { title: "Neo-Tokyo Spire", content: "The target: a corporate spire whose90th floor doesn't officially exist.", type: "location" },
+    ],
+    ["causes", "features"],
+    [
+      { category: "lore", content: "Black-ice is lethal counter-intrusion software; a flatline is permanent." },
+      { category: "character", content: "The netrunner, Kael, owes the fixer a debt he can never repay." },
+    ]
+  ),
+  "fantasy-epic": makeSeed(
+    [
+      { title: "The Omen", content: "The last dragon's shadow falls across the shivering peaks of Eldoria.", type: "plot_beat" },
+      { title: "The Heir", content: "A reluctant stable-hand discovers the old bloodline mark on her palm.", type: "character" },
+      { title: "The Shivering Peaks", content: "A frozen range where the wind is said to carry the names of the dead.", type: "location" },
+    ],
+    ["causes", "features"],
+    [
+      { category: "lore", content: "Dragon-blood heirs can command flame, but each use shortens their life." },
+      { category: "rule", content: "The old pact forbids heirs from wielding flame against their own kin." },
+    ]
+  ),
+  "space-opera": makeSeed(
+    [
+      { title: "The Vote", content: "As the Galactic Senate fractures, a junior envoy holds the tie-breaking vote.", type: "plot_beat" },
+      { title: "The Envoy", content: "An idealist diplomat from a world the Senate forgot exists.", type: "character" },
+      { title: "The Senate Rotunda", content: "A vast chamber where a thousand worlds argue under a dying star's light.", type: "location" },
+    ],
+    ["causes", "features"],
+    [
+      { category: "lore", content: "The Senate's charter forbids any envoy from voting against their own bloc." },
+      { category: "character", content: "The envoy's home world is secretly a prison colony the Senate denies." },
+    ]
+  ),
+  "murder-mystery": makeSeed(
+    [
+      { title: "The Body", content: "At a snowbound manor, a billionaire is found dead in a locked study.", type: "plot_beat" },
+      { title: "The Detective", content: "A retired inspector, the one guest no one invited, takes the case.", type: "character" },
+      { title: "Blackwood Manor", content: "Twelve suspects, one house, and a blizzard that won't lift for days.", type: "location" },
+    ],
+    ["causes", "features"],
+    [
+      { category: "rule", content: "The study's only key was on the victim's own chain — yet the door was bolted inside." },
+      { category: "character", content: "Every suspect had a motive the detective already knows — and one they don't." },
+    ]
+  ),
+};
+GUIDED_SEEDS["demo-room"] = GUIDED_SEEDS.demo;
+
 
 const nodeTypes = {
   plot_beat: StoryCardNode,
@@ -103,6 +208,8 @@ function toStoredNode(n: StoryNode): StoredNode {
       sequence: n.data.sequence,
       node_type: n.data.node_type || n.type || "plot_beat",
       proposed: n.data.proposed,
+      critic_scores: n.data.critic_scores,
+      gate: n.data.gate,
     },
   };
 }
@@ -144,6 +251,8 @@ export default function WritersCanvas({ roomId = "demo-room" }: { roomId?: strin
   const [pitchOpen, setPitchOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [productionOpen, setProductionOpen] = useState(false);
+  const [coverageOpen, setCoverageOpen] = useState(false);
+  const [tensionOpen, setTensionOpen] = useState(false);
   const [transformNodeId, setTransformNodeId] = useState<string | null>(null);
   const [storyFacts, setStoryFacts] = useState<StoryFact[]>([]);
 
@@ -152,6 +261,27 @@ export default function WritersCanvas({ roomId = "demo-room" }: { roomId?: strin
   const edgesRef = useRef(edges);
   nodesRef.current = nodes;
   edgesRef.current = edges;
+  // One-shot guard so a themed empty room seeds exactly once per mount.
+  const seededRef = useRef(false);
+
+  // Auto-populate a themed guided room the first time it loads empty, so the
+  // canvas never greets the writer with a blank void. Genuinely-new rooms (ids
+  // not in GUIDED_SEEDS) stay empty by choice.
+  useEffect(() => {
+    if (!isLoaded || seededRef.current || nodes.length !== 0) return;
+    const seed = GUIDED_SEEDS[roomId];
+    if (!seed) return;
+    seededRef.current = true;
+    resetRoom(seed.nodes, seed.edges);
+    setStoryFacts(seed.facts as StoryFact[]);
+    // Best-effort: persist the seed facts so the Story Bible panel (which loads
+    // from the backend when opened) stays consistent. Failures are silent — the
+    // local state already carries them for the debate's RAG context.
+    seed.facts.forEach((f) => {
+      addFact(roomId, f.category as StoryFact["category"], f.content).catch(() => {});
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoaded, nodes.length, roomId]);
 
   const resetDock = useCallback(() => {
     setStatuses({ ...IDLE_STATUSES });
@@ -232,6 +362,13 @@ export default function WritersCanvas({ roomId = "demo-room" }: { roomId?: strin
       const { nodes: gNodes, edges: gEdges } = serializeGraph();
       const proposed: StoryNode[] = [];
 
+      // Collect the four critics' verdicts + the gate verdict as the debate
+      // streams, so we can stamp a visible scorecard onto every node the room
+      // produces. The verdict set is shared by all nodes in this debate (the
+      // critics each return one verdict on the whole proposed set).
+      const collectedCritics = new Map<CriticKey, CriticScore>();
+      let collectedGate: "APPROVE" | "REJECT" | undefined;
+
       // RAG: retrieve the story-bible facts most relevant to this branch so
       // every agent grounds its work in the established world.
       let ragFacts: { category: string; content: string }[] = [];
@@ -262,9 +399,17 @@ export default function WritersCanvas({ roomId = "demo-room" }: { roomId?: strin
                 break;
               case "critique":
                 setLatestCritique(`${event.critic}: ${event.feedback}`);
+                if (CRITIC_ORDER.includes(event.critic as CriticKey)) {
+                  collectedCritics.set(event.critic as CriticKey, {
+                    critic: event.critic as CriticKey,
+                    decision: event.decision,
+                    severity: event.severity,
+                  });
+                }
                 break;
               case "decision":
                 setDecision(event.decision);
+                collectedGate = event.decision;
                 break;
               case "nodes":
                 console.log("[SSE] Got nodes event:", event.nodes);
@@ -288,6 +433,18 @@ export default function WritersCanvas({ roomId = "demo-room" }: { roomId?: strin
 
         // Materialize the final proposed nodes + edges onto the canvas.
         if (proposed.length) {
+          // Stamp the visible critic scorecard onto each produced node so the
+          // debate's verdicts live on the canvas, not just in the dock.
+          const scorecard = CRITIC_ORDER.filter((k) => collectedCritics.has(k)).map(
+            (k) => collectedCritics.get(k)!
+          );
+          if (scorecard.length || collectedGate) {
+            proposed.forEach((pn) => {
+              pn.data.critic_scores = scorecard.length ? scorecard : undefined;
+              pn.data.gate = collectedGate;
+            });
+          }
+
           const newEdges: StoryEdge[] = proposed.map((pn) => ({
             id: `e-${parentId}-${pn.id}`,
             source: parentId,
@@ -478,6 +635,18 @@ export default function WritersCanvas({ roomId = "demo-room" }: { roomId?: strin
         >
           <ClipboardList size={14} className="text-rose-300" /> Production
         </button>
+        <button
+          onClick={() => setCoverageOpen(true)}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-wine-900/80 backdrop-blur-md border border-rose-400/15 text-[12px] font-medium text-rose-50 hover:border-rose-400/50 transition-colors"
+        >
+          <FileCheck2 size={14} className="text-rose-300" /> Coverage
+        </button>
+        <button
+          onClick={() => setTensionOpen(true)}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-wine-900/80 backdrop-blur-md border border-rose-400/15 text-[12px] font-medium text-rose-50 hover:border-rose-400/50 transition-colors"
+        >
+          <Activity size={14} className="text-rose-300" /> Pacing
+        </button>
       </div>
 
       {/* Premise entry popover */}
@@ -622,6 +791,26 @@ export default function WritersCanvas({ roomId = "demo-room" }: { roomId?: strin
       <ProductionPanel
         open={productionOpen}
         onClose={() => setProductionOpen(false)}
+        roomId={roomId}
+        nodes={serializeGraph().nodes}
+        edges={serializeGraph().edges}
+        storyFacts={storyFacts.map((f) => ({ category: f.category, content: f.content }))}
+      />
+
+      {/* Coverage report (professional reader's verdict) */}
+      <CoveragePanel
+        open={coverageOpen}
+        onClose={() => setCoverageOpen(false)}
+        roomId={roomId}
+        nodes={serializeGraph().nodes}
+        edges={serializeGraph().edges}
+        storyFacts={storyFacts.map((f) => ({ category: f.category, content: f.content }))}
+      />
+
+      {/* Pacing & tension analytics (tension curve + code-derived insights) */}
+      <TensionPanel
+        open={tensionOpen}
+        onClose={() => setTensionOpen(false)}
         roomId={roomId}
         nodes={serializeGraph().nodes}
         edges={serializeGraph().edges}

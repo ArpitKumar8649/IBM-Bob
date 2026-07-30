@@ -19,7 +19,6 @@ a show — directly answering the brief's "bridge imagination and execution."
 
 from __future__ import annotations
 
-import json
 import logging
 from typing import Any
 

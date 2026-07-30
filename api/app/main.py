@@ -10,7 +10,17 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app import __version__
 from app.config import settings
-from app.routes import agent, breakdown, chat, generate, pitch, scene_image, transform
+from app.routes import (
+    agent,
+    analytics,
+    breakdown,
+    chat,
+    coverage,
+    generate,
+    pitch,
+    scene_image,
+    transform,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -69,3 +79,5 @@ app.include_router(pitch.router)
 app.include_router(breakdown.router)
 app.include_router(scene_image.router)
 app.include_router(transform.router)
+app.include_router(coverage.router)
+app.include_router(analytics.router)

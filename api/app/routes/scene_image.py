@@ -61,7 +61,10 @@ async def generate_scene_image(req: SceneImageRequest) -> SceneImageResponse:
     if not settings.dashscope_api_key:
         return SceneImageResponse(
             status="no_key",
-            message="DASHSCOPE_API_KEY is not set. The prompt is ready to paste into any image tool.",
+            message=(
+                "DASHSCOPE_API_KEY is not set. The prompt is ready to paste "
+                "into any image tool."
+            ),
         )
 
     headers = {

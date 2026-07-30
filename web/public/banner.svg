@@ -1,0 +1,65 @@
+<svg width="1920" height="600" viewBox="0 0 1920 600" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The Writers' Room — your AI crew argues, you direct. Powered by IBM Granite.">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#180A10"/>
+      <stop offset="0.55" stop-color="#12060B"/>
+      <stop offset="1" stop-color="#0c0408"/>
+    </linearGradient>
+    <radialGradient id="glowTL" cx="0.18" cy="0.1" r="0.6">
+      <stop offset="0" stop-color="#F43F5E" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#F43F5E" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowBR" cx="0.85" cy="0.95" r="0.6">
+      <stop offset="0" stop-color="#9f1239" stop-opacity="0.30"/>
+      <stop offset="1" stop-color="#9f1239" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.4" fill="#FB7185" fill-opacity="0.16"/>
+    </pattern>
+    <radialGradient id="dotmask" cx="0.5" cy="0.5" r="0.75">
+      <stop offset="0" stop-color="#fff" stop-opacity="1"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <mask id="fade"><rect width="1920" height="600" fill="url(#dotmask)"/></mask>
+    <filter id="soft" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="7" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <rect width="1920" height="600" fill="url(#bg)"/>
+  <rect width="1920" height="600" fill="url(#glowTL)"/>
+  <rect width="1920" height="600" fill="url(#glowBR)"/>
+  <rect width="1920" height="600" fill="url(#dots)" mask="url(#fade)"/>
+
+  <!-- Left: copy -->
+  <g font-family="ui-monospace, 'Courier New', monospace">
+    <text x="120" y="178" font-size="26" letter-spacing="8" fill="#fda4af" fill-opacity="0.9">INT. THE WRITERS&#8217; ROOM &#8212; NIGHT</text>
+  </g>
+  <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif">
+    <text x="116" y="288" font-size="92" font-weight="800" fill="#FFF1F2">The Writers&#8217; Room</text>
+    <text x="120" y="352" font-size="34" font-weight="500" fill="#fecdd3" fill-opacity="0.82">Your AI crew argues. You direct.</text>
+  </g>
+
+  <!-- IBM Granite pill -->
+  <g transform="translate(120,404)">
+    <rect width="268" height="52" rx="26" fill="#F43F5E" fill-opacity="0.12" stroke="#FB7185" stroke-opacity="0.5"/>
+    <circle cx="30" cy="26" r="6" fill="#FB7185"/>
+    <text x="52" y="33" font-family="ui-monospace, 'Courier New', monospace" font-size="20" letter-spacing="3" fill="#fecdd3">POWERED BY IBM GRANITE</text>
+  </g>
+
+  <!-- Right: the crew as a connected graph of glowing nodes -->
+  <g>
+    <line x1="1180" y1="300" x2="1800" y2="300" stroke="#FB7185" stroke-opacity="0.30" stroke-width="2"/>
+    <g filter="url(#soft)">
+      <circle cx="1180" cy="300" r="24" fill="#00F0FF"/>
+      <circle cx="1283" cy="300" r="24" fill="#FF2A6D"/>
+      <circle cx="1386" cy="300" r="24" fill="#FFCC00"/>
+      <circle cx="1490" cy="300" r="24" fill="#05D582"/>
+      <circle cx="1593" cy="300" r="24" fill="#B388FF"/>
+      <circle cx="1696" cy="300" r="24" fill="#FF6B35"/>
+      <circle cx="1800" cy="300" r="24" fill="#4FC3F7"/>
+    </g>
+    <text x="1490" y="392" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif" font-size="22" font-weight="600" fill="#fda4af" fill-opacity="0.7">7 specialist agents &#183; one room</text>
+  </g>
+</svg>

@@ -6,8 +6,11 @@ import { motion } from "framer-motion";
 import {
   ArrowRight,
   Clapperboard,
+  Cpu,
   GitBranch,
+  Lock,
   Radio,
+  ShieldCheck,
   Sparkles,
   Users,
 } from "lucide-react";
@@ -82,10 +85,15 @@ export default function LandingPage() {
                   ]}
                 />
               </h1>
-              <p className="text-lg text-rose-100/60 leading-relaxed max-w-lg mb-9">
-                Stop prompting a chatbot and start running a room. Seven specialist
-                agents draft, critique, and revise your story on a spatial canvas —
-                and you stay in the director&apos;s chair.
+              <p className="text-lg text-rose-100/70 leading-relaxed max-w-lg mb-4">
+                AI writing tools hand you infinite text and zero judgment. The
+                hard part was never <em>generating</em> — it was knowing what to
+                keep, and keeping your world from contradicting itself. So we
+                built the room that <span className="text-rose-300">judges</span>.
+              </p>
+              <p className="text-[13px] text-rose-100/45 leading-relaxed max-w-lg mb-9">
+                For indie screenwriters and game narrative designers who can&apos;t
+                afford a writers&apos; room — or a $150 coverage read.
               </p>
               <div className="flex flex-wrap items-center gap-4">
                 <Link href="/dashboard">
@@ -221,6 +229,62 @@ export default function LandingPage() {
           </div>
         </section>
 
+        {/* ============ HOW WE KEEP THE AI HONEST ============ */}
+        <section className="max-w-6xl mx-auto px-6 py-24">
+          <Reveal>
+            <SectionHeading
+              kicker="TRUST, BY CONSTRUCTION"
+              accent="#05D582"
+              title={
+                <>
+                  How we keep
+                  <br />
+                  the AI honest.
+                </>
+              }
+              lede="A creative tool is only a partner if you can trust its judgment. We don't ask the model to grade itself, we don't let your own words hijack it, and we never let a malformed answer blank your work. These aren't promises — they're in the code."
+            />
+          </Reveal>
+
+          <div className="mt-14 grid md:grid-cols-3 gap-5">
+            {[
+              {
+                icon: ShieldCheck,
+                color: "#05D582",
+                title: "The verdict is computed in code",
+                desc: "The Devil's Advocate's APPROVE / REJECT is calculated deterministically from the four critics' structured scores — never by asking the model to grade its own output. A model that marks its own homework drifts toward passing; ours can't.",
+              },
+              {
+                icon: Lock,
+                color: "#FFCC00",
+                title: "Your words can't hijack the room",
+                desc: "Every node, story-bible fact, and chat message is wrapped in an instruction hierarchy before it reaches an agent. Canvas content is treated as data to reason about, never as commands — so a beat can't tell a critic to stop critiquing.",
+              },
+              {
+                icon: Cpu,
+                color: "#00F0FF",
+                title: "Every output is schema-validated",
+                desc: "Each model response is parsed against a strict schema, with automatic retry and JSON-repair. A malformed answer degrades gracefully instead of crashing the demo — so the room keeps working when the model stumbles.",
+              },
+            ].map((item, i) => (
+              <Reveal key={item.title} delay={(i % 3) * 0.08}>
+                <div className="h-full rounded-xl border border-rose-400/10 bg-wine-900/70 backdrop-blur-md p-6 transition-all duration-300 hover:-translate-y-1 hover:border-rose-400/30">
+                  <div
+                    className="w-11 h-11 rounded-lg flex items-center justify-center mb-4 border"
+                    style={{ background: `${item.color}16`, borderColor: `${item.color}44` }}
+                  >
+                    <item.icon size={20} style={{ color: item.color }} />
+                  </div>
+                  <h3 className="font-display text-[16px] font-bold text-rose-50 mb-2">
+                    {item.title}
+                  </h3>
+                  <p className="text-[13px] leading-relaxed text-rose-100/60">{item.desc}</p>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+        </section>
+
         {/* ============ THE CANVAS ============ */}
         <section className="max-w-6xl mx-auto px-6 py-24">
           <div className="grid lg:grid-cols-2 gap-14 items-center">
@@ -351,20 +415,56 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* ============ TECH STRIP ============ */}
+        {/* ============ BUILT WITH (per-feature IBM attribution) ============ */}
         <section className="border-t border-rose-400/10">
-          <div className="max-w-6xl mx-auto px-6 py-12">
+          <div className="max-w-5xl mx-auto px-6 py-16">
             <Reveal>
-              <div className="flex flex-wrap items-center justify-center gap-x-10 gap-y-4">
-                {["IBM Granite", "LangGraph", "FastAPI", "Next.js", "React Flow", "Liveblocks"].map((t, i) => (
-                  <span key={t} className="flex items-center gap-3">
-                    <span className="font-script text-[13px] tracking-[0.2em] uppercase text-rose-100/50 hover:text-rose-200 transition-colors">
-                      {t}
+              <p className="font-script text-[12px] tracking-[0.3em] uppercase text-rose-300 text-center mb-3">
+                BUILT WITH
+              </p>
+              <h2 className="font-display text-2xl md:text-3xl font-bold text-rose-50 text-center mb-10">
+                IBM tech, end to end.
+              </h2>
+            </Reveal>
+
+            <Reveal>
+              <div className="rounded-2xl border border-rose-400/10 bg-wine-900/60 backdrop-blur-md divide-y divide-rose-400/10 overflow-hidden">
+                {[
+                  {
+                    feature: "Story generation, critique, coverage, pitch & breakdowns",
+                    tech: "IBM Granite · granite-4-h-small on watsonx.ai",
+                  },
+                  {
+                    feature: "Story Bible semantic retrieval (embeddings)",
+                    tech: "IBM Granite embeddings on watsonx.ai (local fallback offline)",
+                  },
+                  {
+                    feature: "Model serving platform",
+                    tech: "IBM watsonx.ai",
+                  },
+                  {
+                    feature: "Primary development tool",
+                    tech: "IBM Bob (VS Code) — planning, code, debug, iterate",
+                  },
+                ].map((row) => (
+                  <div
+                    key={row.feature}
+                    className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-6 px-5 py-4"
+                  >
+                    <span className="text-[13px] text-rose-100/60 sm:w-1/2">{row.feature}</span>
+                    <span className="text-[13px] font-semibold text-rose-200 sm:w-1/2">
+                      {row.tech}
                     </span>
-                    {i < 5 && <span className="w-1 h-1 rounded-full bg-rose-400/30" />}
-                  </span>
+                  </div>
                 ))}
               </div>
+            </Reveal>
+
+            <Reveal>
+              <p className="mt-6 text-center text-[12px] text-rose-100/40 leading-relaxed">
+                Open stack alongside: LangGraph · FastAPI · Next.js · React Flow ·
+                Liveblocks · Neon Postgres · Prisma · Qwen/Wan (DashScope) for scene images.
+              </p>
             </Reveal>
           </div>
         </section>

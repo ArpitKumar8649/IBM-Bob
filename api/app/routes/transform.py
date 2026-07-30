@@ -99,7 +99,10 @@ async def transform_tone(req: TransformRequest) -> EventSourceResponse:
     tone_key = req.tone.lower().strip()
     if tone_key not in TONE_PROMPTS:
         return EventSourceResponse(
-            _sse("error", {"message": f"Unknown tone '{req.tone}'. Available: {', '.join(TONE_PROMPTS)}"})
+            _sse(
+                "error",
+                {"message": f"Unknown tone '{req.tone}'. Available: {', '.join(TONE_PROMPTS)}"},
+            )
             for _ in [None]
         )
 
@@ -115,8 +118,14 @@ async def transform_tone(req: TransformRequest) -> EventSourceResponse:
         parts.append(f"\n\nNode title: {req.title}")
     parts.append("\n\n[original passage]\n" + fence_untrusted(req.content))
     if req.story_facts:
-        fact_lines = [f"- [{f.get('category', 'lore')}] {f.get('content', '')}" for f in req.story_facts]
-        parts.append("\n\n[story bible — preserve these facts]\n" + fence_untrusted("\n".join(fact_lines)))
+        fact_lines = [
+            f"- [{f.get('category', 'lore')}] {f.get('content', '')}"
+            for f in req.story_facts
+        ]
+        parts.append(
+            "\n\n[story bible — preserve these facts]\n"
+            + fence_untrusted("\n".join(fact_lines))
+        )
 
     user_prompt = "".join(parts)
 

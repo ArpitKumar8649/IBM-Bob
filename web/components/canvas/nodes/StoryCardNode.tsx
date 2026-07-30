@@ -14,7 +14,7 @@ import {
   User,
   X,
 } from "lucide-react";
-import type { StoryNode, StoryNodeType } from "@/lib/canvas-types";
+import { CRITIC_META, CRITIC_ORDER, type StoryNode, type StoryNodeType } from "@/lib/canvas-types";
 
 /**
  * One card component renders every narrative element on the canvas.
@@ -73,6 +73,12 @@ const StoryCardNode = ({ data, selected, isConnectable }: NodeProps<StoryNode>) 
   const Icon = cfg.icon;
   const proposed = Boolean(data.proposed);
   const loading = Boolean(data.loading);
+
+  // Critic scorecard stamped by the debate that produced this node.
+  const scoreByCritic = new Map(
+    (data.critic_scores ?? []).map((s) => [s.critic, s] as const)
+  );
+  const hasScorecard = (data.critic_scores?.length ?? 0) > 0;
 
   // Local editable draft, synced from props when the data changes externally.
   const [title, setTitle] = useState(data.title);
@@ -160,6 +166,46 @@ const StoryCardNode = ({ data, selected, isConnectable }: NodeProps<StoryNode>) 
           </div>
         )}
       </div>
+
+      {/* Critic scorecard — the debate's verdicts, made visible on the node. */}
+      {hasScorecard && (
+        <div className="flex items-center justify-between gap-2 px-4 mt-1.5">
+          <div className="flex items-center gap-1.5">
+            {CRITIC_ORDER.map((key) => {
+              const meta = CRITIC_META[key];
+              const score = scoreByCritic.get(key);
+              const approved = score?.decision === "APPROVE";
+              return (
+                <span
+                  key={key}
+                  title={
+                    score
+                      ? `${meta.label}: ${score.decision} (${score.severity})`
+                      : `${meta.label}: no verdict`
+                  }
+                  className="w-2.5 h-2.5 rounded-full transition-colors"
+                  style={{
+                    background: score ? (approved ? meta.color : "transparent") : "#3A1B24",
+                    border: score ? `1.5px solid ${meta.color}` : "1.5px solid #3A1B24",
+                    boxShadow: score && approved ? `0 0 6px ${meta.color}99` : "none",
+                  }}
+                />
+              );
+            })}
+          </div>
+          {data.gate && (
+            <span
+              className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded"
+              style={{
+                color: data.gate === "APPROVE" ? "#05D582" : "#FB7185",
+                background: data.gate === "APPROVE" ? "#05D58218" : "#FB718518",
+              }}
+            >
+              {data.gate === "APPROVE" ? "✓ approved" : "↻ pushed back"}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Editable title */}
       <input
