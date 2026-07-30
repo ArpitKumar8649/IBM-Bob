@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(npm --version)",
+      "Bash(uv --version)",
+      "Bash(pip --version)",
+      "Bash(git -C /workspaces/IBM-Bob remote -v)",
+      "Bash(sed -i 's/    @property//g' /workspaces/IBM-Bob/api/app/config.py)",
+      "Bash(sed -i 's/    def has_dashscope_key\\(self\\) -> bool://g' /workspaces/IBM-Bob/api/app/config.py)",
+      "Bash(sed -i 's/        \"\"\"Check if DashScope API key is configured.\"\"\"//g' /workspaces/IBM-Bob/api/app/config.py)",
+      "Bash(sed -i 's/        return bool\\(self.dashscope_api_key\\)//g' /workspaces/IBM-Bob/api/app/config.py)",
+      "Bash(kill *)",
+      "Bash(npm --prefix /workspaces/IBM-Bob/web install @xyflow/react@^12)",
+      "Bash(npm --prefix /workspaces/IBM-Bob/web uninstall reactflow)",
+      "Bash(node -e \"const p=require\\('/workspaces/IBM-Bob/web/package.json'\\); console.log\\('reactflow:', p.dependencies.reactflow || 'REMOVED'\\); console.log\\('@xyflow/react:', p.dependencies['@xyflow/react'] || 'MISSING'\\);\")",
+      "Bash(node -e \"console.log\\('installed version:', require\\('/workspaces/IBM-Bob/web/node_modules/@xyflow/react/package.json'\\).version\\)\")",
+      "Bash(git rm *)",
+      "Bash(git commit -m ' *)",
+      "Bash(uv run python -c ' *)",
+      "WebFetch(domain:igloo.inc)"
+    ]
+  }
+}

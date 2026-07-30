@@ -20,6 +20,7 @@ from app.routes import (
     pitch,
     scene_image,
     transform,
+    voice,
 )
 
 logging.basicConfig(
@@ -81,3 +82,4 @@ app.include_router(scene_image.router)
 app.include_router(transform.router)
 app.include_router(coverage.router)
 app.include_router(analytics.router)
+app.include_router(voice.router)

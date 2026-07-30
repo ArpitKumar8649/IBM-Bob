@@ -38,6 +38,12 @@ from app.orchestration.context import (
 )
 from app.orchestration.ordering import compute_insights, order_nodes
 from app.orchestration.structured import invoke_structured
+from app.orchestration.voice import (
+    MIN_LOCK_TOKENS,
+    can_lock,
+    evaluate_voice,
+    metrics_from_lines,
+)
 from app.routes.breakdown import (
     CharacterBreakdown,
     CharacterBreakdownResult,
@@ -537,3 +543,287 @@ class TestInsightsSchemaRoundtrip:
         assert parsed.flat_stretch is not None
         assert parsed.flat_stretch.length == 4
         assert parsed.flat_stretch.beat_titles == ["b2", "b3", "b4", "b5"]
+
+
+# --------------------------------------------------------------------------- #
+# Voice lock — the route's own schemas and pure helpers.
+#
+# The fingerprint math is tested exhaustively in test_voice_logic.py. What is
+# tested here is the *seam*: the route's response models have to mirror the
+# dataclasses key-for-key, because a FastAPI `response_model` silently drops any
+# field it has not declared. A rename in voice.py would leave every test in
+# test_voice_logic.py green while the field vanished off the wire.
+# --------------------------------------------------------------------------- #
+
+# A canvas whose beats give Marcus enough attributable dialogue to clear
+# MIN_LOCK_TOKENS (57 words over 3 lines), with a second speaker present so the
+# harvest tests are proving attribution and not just quote extraction.
+_VOICE_NODES = [
+    {
+        "id": "n1",
+        "data": {
+            "node_type": "plot_beat",
+            "title": "Docks",
+            "content": (
+                'Marcus said, "The crate stays shut. I signed for it, so it is mine '
+                'until the harbour master says otherwise."'
+            ),
+        },
+    },
+    {
+        "id": "n2",
+        "data": {
+            "node_type": "character",
+            "title": "Marcus Vane",
+            "content": "Ex-quartermaster. Short declaratives, no hedging.",
+        },
+    },
+    {
+        "id": "n3",
+        "data": {
+            "node_type": "plot_beat",
+            "title": "Hold",
+            "content": (
+                'Marcus set the lamp down. "You want the truth. Fine. The manifest is '
+                'short by four crates and I counted them myself."'
+            ),
+        },
+    },
+    {
+        "id": "n4",
+        "data": {
+            "node_type": "plot_beat",
+            "title": "Deck",
+            "content": (
+                'Dana laughed. "Then we starve politely."\n\n'
+                'Marcus did not look up. "We do it my way or we do not do it. I have '
+                'buried better men than the ones on that pier."'
+            ),
+        },
+    },
+]
+
+
+def _locked_metrics():
+    from app.routes.voice import _harvest
+
+    return metrics_from_lines(_harvest(_VOICE_NODES, "Marcus"))
+
+
+class TestVoiceRouteSchemas:
+    def test_measured_metrics_round_trip_through_the_response_schema(self):
+        from app.routes.voice import StyleMetricsOut
+
+        raw = _locked_metrics().as_dict()
+        parsed = StyleMetricsOut.model_validate(raw)
+        # All 14 measured fields survive; none is dropped by the response model.
+        assert parsed.model_dump() == pytest.approx(raw)
+        assert len(raw) == 14
+
+    def test_a_judged_report_round_trips_with_its_deltas(self):
+        from app.routes.voice import VoiceCheckResult
+
+        locked = _locked_metrics()
+        report = evaluate_voice(
+            "Honestly, I just think maybe we could possibly all be a little bit kinder "
+            "about the whole crate situation, don't you think?",
+            locked,
+            character="Marcus",
+        )
+        parsed = VoiceCheckResult.model_validate(report.as_dict())
+        assert parsed.judged is True
+        assert parsed.score > 0
+        assert len(parsed.deltas) == len(report.deltas)
+        # A skipped axis keeps its tolerance and reason so the panel can explain
+        # why a visible difference did not count.
+        assert all(d.tolerance >= 0 for d in parsed.deltas)
+
+    def test_an_unjudged_short_candidate_round_trips_with_its_reason(self):
+        from app.routes.voice import VoiceCheckResult
+
+        parsed = VoiceCheckResult.model_validate(
+            evaluate_voice("No.", _locked_metrics(), character="Marcus").as_dict()
+        )
+        assert parsed.judged is False
+        assert parsed.score == 0
+        assert parsed.reason and "words" in parsed.reason
+
+    def test_an_unjudged_report_still_carries_a_never_says_blocker(self):
+        from app.routes.voice import VoiceCheckResult
+
+        parsed = VoiceCheckResult.model_validate(
+            evaluate_voice(
+                "Pure synergy.", _locked_metrics(), character="Marcus", never_says=["synergy"]
+            ).as_dict()
+        )
+        # The categorical rule holds at any sample size — this is the pairing the
+        # UI has to render: judged=False alongside severity="blocker".
+        assert parsed.judged is False
+        assert parsed.severity == "blocker"
+        assert parsed.violations[0].kind == "never_says"
+        assert parsed.violations[0].escalates is True
+
+    def test_an_empty_metrics_dict_is_a_refusal_not_a_validation_error(self):
+        from app.routes.voice import VoiceCheckResult
+
+        # The stored fingerprint is a Postgres Json column passed through
+        # verbatim, so a row written by an older build must degrade, not 422.
+        parsed = VoiceCheckResult.model_validate(
+            evaluate_voice("We do it my way or we do not do it at all.", {}).as_dict()
+        )
+        assert parsed.judged is False
+        assert parsed.deltas == []
+
+    def test_the_lock_result_refuses_without_metrics_or_a_register(self):
+        from app.routes.voice import SampleReport, VoiceLockResult
+
+        result = VoiceLockResult(
+            status="insufficient_sample",
+            character="Marcus",
+            message="only 11 words of dialogue found",
+            sample=SampleReport(
+                nodes_scanned=4,
+                lines_found=1,
+                tokens=11,
+                min_tokens_required=MIN_LOCK_TOKENS,
+                confidence="none",
+            ),
+        )
+        assert result.metrics is None and result.voice_register is None
+        assert result.sample.min_tokens_required == MIN_LOCK_TOKENS
+
+    def test_the_register_requires_a_label(self):
+        from app.routes.voice import VoiceRegister
+
+        with pytest.raises(ValidationError):
+            VoiceRegister(  # type: ignore[call-arg]
+                description="Clipped.",
+                signature_phrases=[],
+                vocabulary_domain="cargo",
+                never_says=[],
+            )
+
+    def test_the_register_label_is_length_bounded(self):
+        from app.routes.voice import VoiceRegister
+
+        with pytest.raises(ValidationError):
+            VoiceRegister(
+                register_label="x" * 61,
+                description="",
+                signature_phrases=[],
+                vocabulary_domain="",
+                never_says=[],
+            )
+
+
+class TestVoiceHarvest:
+    def test_harvest_concatenates_attributed_lines_in_node_order(self):
+        from app.routes.voice import _harvest
+
+        lines = _harvest(_VOICE_NODES, "Marcus")
+        assert len(lines) == 3
+        assert lines[0].startswith("The crate stays shut")
+        assert lines[-1].startswith("We do it my way")
+        # Dana shares a node with Marcus and must not leak into his sample.
+        assert not any("starve politely" in ln for ln in lines)
+
+    def test_harvest_attributes_the_other_speaker_separately(self):
+        from app.routes.voice import _harvest
+
+        assert _harvest(_VOICE_NODES, "Dana") == ["Then we starve politely."]
+
+    def test_harvest_with_a_blank_name_returns_nothing(self):
+        from app.routes.voice import _harvest
+
+        # This is why /voice/lock rejects a blank name before harvesting: an
+        # empty result here is indistinguishable from "never speaks".
+        assert _harvest(_VOICE_NODES, "   ") == []
+
+    def test_harvest_ignores_nodes_with_no_content(self):
+        from app.routes.voice import _harvest
+
+        assert _harvest([{"id": "x", "data": {}}, {"id": "y"}], "Marcus") == []
+
+    def test_the_harvested_sample_clears_the_lock_gate(self):
+        from app.routes.voice import _harvest
+
+        ok, refusal = can_lock(_harvest(_VOICE_NODES, "Marcus"))
+        assert ok is True and refusal is None
+
+    def test_a_single_line_sample_is_refused_with_a_countable_message(self):
+        from app.routes.voice import _harvest
+
+        ok, refusal = can_lock(_harvest(_VOICE_NODES[:1], "Marcus"))
+        assert ok is False
+        assert refusal is not None and str(MIN_LOCK_TOKENS) in refusal
+
+    def test_confidence_bands_sit_on_the_documented_edges(self):
+        from app.routes.voice import _confidence_band
+
+        assert [_confidence_band(t) for t in (0, MIN_LOCK_TOKENS - 1)] == ["none", "none"]
+        assert [_confidence_band(t) for t in (MIN_LOCK_TOKENS, 79)] == ["low", "low"]
+        assert [_confidence_band(t) for t in (80, 199)] == ["medium", "medium"]
+        assert _confidence_band(200) == "high"
+
+    def test_the_confidence_floor_tracks_the_lock_threshold(self):
+        from app.routes.voice import _confidence_band
+
+        # Not a copied literal: a change to MIN_LOCK_TOKENS must move this edge.
+        assert _confidence_band(MIN_LOCK_TOKENS - 1) == "none"
+        assert _confidence_band(MIN_LOCK_TOKENS) != "none"
+
+    def test_clean_phrases_dedupes_case_insensitively(self):
+        from app.routes.voice import _clean_phrases
+
+        # The dedupe that stops one out-of-character word producing three
+        # blockers: check_violations has no dedupe of its own.
+        assert _clean_phrases(
+            ["Synergy", "synergy", "  ", "SYNERGY", "leverage"], limit=6, max_len=60
+        ) == ["Synergy", "leverage"]
+
+    def test_clean_phrases_survives_a_non_string_entry(self):
+        from app.routes.voice import _clean_phrases
+
+        # check_violations calls .strip() on each term; None there is an
+        # AttributeError inside a critic, so it is filtered here instead.
+        assert _clean_phrases([None, "", "okay"], limit=6, max_len=60) == ["okay"]  # type: ignore[list-item]
+
+    def test_clean_phrases_caps_the_list_and_the_entries(self):
+        from app.routes.voice import _clean_phrases
+
+        # max_len truncates first, so ten terms sharing a 4-char prefix dedupe
+        # down to one — a model that returns near-identical near-synonyms cannot
+        # turn every line into a wall of blockers.
+        assert _clean_phrases([f"term{i}" for i in range(10)], limit=6, max_len=4) == ["term"]
+        assert _clean_phrases(["a", "b", "c", "d"], limit=2, max_len=60) == ["a", "b"]
+
+    def test_a_cleaned_never_says_list_produces_exactly_one_blocker(self):
+        from app.routes.voice import _clean_phrases
+
+        report = evaluate_voice(
+            "Pure synergy, team.",
+            _locked_metrics(),
+            character="Marcus",
+            never_says=_clean_phrases(["synergy", "Synergy"], limit=6, max_len=60),
+        )
+        assert len(report.violations) == 1
+        assert report.severity == "blocker"
+
+    def test_the_character_bio_is_read_from_the_matching_character_node(self):
+        from app.routes.voice import _character_bio
+
+        assert "quartermaster" in _character_bio(_VOICE_NODES, "Marcus")
+        assert _character_bio(_VOICE_NODES, "Dana") == ""
+
+    def test_only_character_category_facts_reach_the_naming_prompt(self):
+        from app.routes.voice import _character_facts
+
+        block = _character_facts(
+            [
+                {"category": "character", "content": "Marcus never swears."},
+                {"category": "lore", "content": "The port is cursed."},
+                {"category": "character", "content": ""},
+            ]
+        )
+        assert block == "- Marcus never swears."
+
