@@ -16,12 +16,28 @@ dist/
 build/
 *.tsbuildinfo
 .turbo/
+.vercel/
 
 # ---- Env & secrets ----
+# `.env` / `.env.*` are the live, filled-in files and must never be committed.
+# The `.env.example` templates are the only env files that belong in git.
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 *.pem
+*.key
+*.p12
+gha-creds-*.json
+
+# ---- Agent tooling (machine-specific) ----
+# settings.local.json is a per-machine permission allowlist holding absolute
+# paths from whichever codespace generated it. Shared config goes in
+# .claude/settings.json instead.
+.claude/settings.local.json
+.claude/projects/
+.claude/todos/
+.claude/shell-snapshots/
+.claude/statsig/
 
 # ---- OS / editor ----
 .DS_Store
