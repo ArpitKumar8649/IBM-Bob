@@ -16,14 +16,14 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
-from app.orchestration.agent_graph import writers_graph
-from app.security import RateLimiter, require_api_key
+from app.orchestration.agent_graph import MAX_REVISIONS, writers_graph
+from app.security import RateLimiter, Reservation, daily_budget, require_api_key
 
 logger = logging.getLogger("writers_room.agent")
 
@@ -36,6 +36,16 @@ router = APIRouter(
     tags=["orchestration"],
     dependencies=[Depends(require_api_key), Depends(_rate_limiter)],
 )
+
+# What one debate can cost the shared daily budget. A deliberation is the
+# Architect (or the Reviser) plus the four critics, and the gate can send a draft
+# back MAX_REVISIONS times — so the worst case is derived from the loop's own
+# bound rather than hard-coded, and raising MAX_REVISIONS raises the reservation
+# with it. Each endpoint reserves the worst case and refunds the rounds the gate
+# turned out not to need.
+_CALLS_PER_ROUND = 5
+_MAX_DEBATE_CALLS = _CALLS_PER_ROUND * (MAX_REVISIONS + 1)
+_debate_budget = daily_budget.cost(_MAX_DEBATE_CALLS)
 
 
 # --------------------------------------------------------------------------- #
@@ -189,13 +199,18 @@ _NODE_LABELS = {
 
 
 @router.post("/invoke", response_model=OrchestrateResponse)
-async def invoke_agent(request: OrchestrateRequest) -> OrchestrateResponse:
+async def invoke_agent(
+    request: OrchestrateRequest,
+    budget: Annotated[Reservation, Depends(_debate_budget)],
+) -> OrchestrateResponse:
     """Run the debate loop async and return the final approved nodes."""
     initial = _initial_state(request)
     try:
         final_state = await writers_graph.ainvoke(initial)
     except Exception:  # noqa: BLE001 — log provider detail, never expose it
         logger.exception("agent invoke failed")
+        # No refund: a failure mid-graph has already made an unknown number of
+        # calls, and over-counting a broken request is safer than under-counting.
         raise HTTPException(
             status_code=502,
             detail="The writer's room is temporarily unavailable. Please retry.",
@@ -207,6 +222,12 @@ async def invoke_agent(request: OrchestrateRequest) -> OrchestrateResponse:
             status_code=502,
             detail="The writer's room could not complete this request. Please retry.",
         )
+
+    # Give back the rounds the gate didn't need: a draft approved on the first
+    # pass costs a third of the worst case that was reserved for it.
+    rounds = 1 + int(final_state.get("revision_count") or 0)
+    budget.refund(_MAX_DEBATE_CALLS - _CALLS_PER_ROUND * rounds)
+
     return OrchestrateResponse(
         status="success",
         nodes=final_state.get("proposed_nodes", []),
@@ -217,7 +238,10 @@ async def invoke_agent(request: OrchestrateRequest) -> OrchestrateResponse:
 
 
 @router.post("/stream")
-async def stream_agent(request: OrchestrateRequest) -> EventSourceResponse:
+async def stream_agent(
+    request: OrchestrateRequest,
+    budget: Annotated[Reservation, Depends(_debate_budget)],
+) -> EventSourceResponse:
     """Stream the live debate as SSE events.
 
     Event vocabulary:
@@ -240,6 +264,7 @@ async def stream_agent(request: OrchestrateRequest) -> EventSourceResponse:
             acc_critics: list[dict[str, Any]] = []
             acc_decision: str | None = None
             acc_feedback: str = ""
+            rounds = 0  # merged verdicts seen == deliberations actually paid for
 
             async for ev in writers_graph.astream_events(initial, version="v2"):
                 etype = ev.get("event", "")
@@ -264,6 +289,7 @@ async def stream_agent(request: OrchestrateRequest) -> EventSourceResponse:
                         decision = out.get("decision")
                         if decision:
                             acc_decision = decision
+                            rounds += 1
                             yield _sse("decision", {"decision": decision})
                         if out.get("critique_feedback"):
                             acc_feedback = out["critique_feedback"]
@@ -273,6 +299,10 @@ async def stream_agent(request: OrchestrateRequest) -> EventSourceResponse:
                             acc_nodes = nodes  # latest draft wins
                             yield _sse("nodes", {"nodes": nodes, "by": label})
                     yield _sse("agent_finish", {"agent": name, "label": label})
+
+            # Same refund as /invoke, counted from the merged verdicts that were
+            # actually streamed. A stream that dies mid-debate keeps its charge.
+            budget.refund(_MAX_DEBATE_CALLS - _CALLS_PER_ROUND * max(rounds, 1))
 
             yield _sse(
                 "done",

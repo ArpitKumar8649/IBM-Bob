@@ -6,7 +6,7 @@
 [![IBM Granite](https://img.shields.io/badge/IBM%20Granite-granite--4--h--small-0f62fe?style=for-the-badge&logo=ibm&logoColor=white)](https://www.ibm.com/granite)
 [![watsonx.ai](https://img.shields.io/badge/served%20on-watsonx.ai-6929c4?style=for-the-badge)](https://www.ibm.com/watsonx)
 [![Built with IBM Bob](https://img.shields.io/badge/built%20with-IBM%20Bob-1f1f1f?style=for-the-badge)](https://www.ibm.com/products/bob)
-[![Tests](https://img.shields.io/badge/tests-306%20passing-05D582?style=for-the-badge)](#-how-we-keep-the-ai-honest)
+[![Tests](https://img.shields.io/badge/tests-318%20passing-05D582?style=for-the-badge)](#-how-we-keep-the-ai-honest)
 
 **Built for the [IBM AI Builders Challenge — July 2026](https://www.ibm.com/) · *Creative Industries* track.**
 
@@ -168,7 +168,7 @@ A creative tool is only a partner if you can trust its judgment. These aren't pr
 1. **The verdict is computed in code.** The Devil's Advocate's APPROVE / REJECT is calculated deterministically from the four critics' structured scores (`merge_agent` / `gate_router` in `agent_graph.py`) — *never* by asking the model to grade its own output. A 2–2 split is treated as meaningful disagreement (→ revise), not silent acceptance.
 2. **Every output is schema-validated.** Each model response is parsed against a strict Pydantic schema, with automatic retry and JSON-repair. A malformed answer degrades gracefully instead of crashing.
 3. **Your words can't hijack the room.** All user-supplied content is fenced with an instruction hierarchy (`fence_untrusted` in `context.py`) before it reaches an agent.
-4. **The high-signal logic is tested without a network.** `api/tests/` pins the gate's deterministic verdicts, the injection fence, the structured-output retry/fallback contract, the topological beat-ordering (cycles, self-loops, disconnected nodes), the code-derived pacing insights, the voice-drift arithmetic, and every response schema — **306 tests, all passing, no network, ~4s.**
+4. **The high-signal logic is tested without a network.** `api/tests/` pins the gate's deterministic verdicts, the injection fence, the structured-output retry/fallback contract, the topological beat-ordering (cycles, self-loops, disconnected nodes), the code-derived pacing insights, the voice-drift arithmetic, and every response schema — **318 tests, all passing, no network, ~4s.**
 5. **Structural judgment is computed, not asked.** The pacing analytics route (`/analytics/tension`) asks the model only for per-beat tension numbers, then derives climax placement, flat-stretch detection, and overall arc shape in `app/orchestration/ordering.py` — the same principle as the debate gate, applied to story structure.
 6. **A locked voice is enforced by arithmetic.** Character voice lock measures 14 style axes from a character's own dialogue in pure Python (`app/orchestration/voice.py`). Granite is allowed to *name* the register it finds; it never scores one. During a debate the Character Lead measures the draft against those numbers and **floors its verdict at the measured one** — so a wholesale register change is a REJECT no model can talk down, and a sample too thin to judge is reported as unmeasured rather than guessed at.
 
@@ -280,6 +280,7 @@ The app runs at `http://localhost:3000`.
 | `OLLAMA_URL` / `OLLAMA_MODEL_ID` | local Ollama Granite (dev) |
 | `CORS_ORIGINS` | comma-separated allowed origins |
 | `WRITERS_ROOM_API_KEY` | optional shared API key for the demo backend |
+| `WRITERS_ROOM_DAILY_MODEL_CALLS` | process-wide ceiling on model calls per rolling 24h (default `600`, `0` disables). Reported by `GET /healthz` |
 | `DASHSCOPE_API_KEY` | optional — enables in-app scene-image rendering (else the cinematic prompt is shown, copyable) |
 
 ### `web/.env.local` (frontend)
@@ -334,7 +335,7 @@ IBM-Bob/
 │   ├── app/
 │   │   ├── main.py               # app entrypoint, CORS, routers, lifespan
 │   │   ├── config.py             # settings (pydantic-settings), backend-agnostic
-│   │   ├── security.py           # API key + per-IP rate limiting
+│   │   ├── security.py           # API key + per-IP rate limiting + shared daily spend ceiling
 │   │   ├── llm/
 │   │   │   ├── chat_model.py     # backend-agnostic Granite chat model
 │   │   │   └── granite_client.py # raw streaming client
@@ -356,7 +357,7 @@ IBM-Bob/
 │   │       ├── analytics.py      # /analytics/tension
 │   │       ├── voice.py          # /voice/lock, /voice/check
 │   │       └── generate.py       # /api/generate, /api/model-info
-│   ├── tests/                    # 306 tests, no network
+│   ├── tests/                    # 318 tests, no network
 │   └── pyproject.toml
 ├── web/                          # Next.js frontend
 │   ├── app/
@@ -391,7 +392,7 @@ IBM-Bob/
 ## 🗺️ Roadmap
 
 **Shipped**
-Debate loop (7 agents, LangGraph, streaming SSE) · spatial canvas (4 node types, semantic edges, on-node critic scorecard) · Story Bible (RAG) · multi-turn agent chat · tone/genre transfer · **coverage report** · **character voice lock (14-axis fingerprint, enforced by the Character Lead in code)** · pacing/tension analytics chart · Director's Cut (PDF/Fountain/FDX/text) · pitch deck · character + scene/shot-list breakdowns · cinematic image prompts · auth + cookie demo mode · real-time collaborative canvas · guided seed rooms · 306 no-network tests · CI · Docker Compose · deploy configs.
+Debate loop (7 agents, LangGraph, streaming SSE) · spatial canvas (4 node types, semantic edges, on-node critic scorecard) · Story Bible (RAG) · multi-turn agent chat · tone/genre transfer · **coverage report** · **character voice lock (14-axis fingerprint, enforced by the Character Lead in code)** · pacing/tension analytics chart · Director's Cut (PDF/Fountain/FDX/text) · pitch deck · character + scene/shot-list breakdowns · cinematic image prompts · auth + cookie demo mode · real-time collaborative canvas · guided seed rooms · 318 no-network tests · CI · Docker Compose · deploy configs.
 
 **Post-challenge (ambition)**
 Version history (canvas snapshots) · mobile-responsive canvas · PWA/offline · billing (Stripe) · collaboration suite (comments, approvals, @mentions) · integrations (Notion, Google Docs, Slack) · accessibility audit (WCAG 2.1 AA) · i18n · template marketplace · multi-format story support (novel/comic/game).

@@ -32,16 +32,19 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from app.config import settings
-from app.security import RateLimiter, require_api_key
+from app.security import RateLimiter, daily_budget, require_api_key
 
 logger = logging.getLogger("writers_room.scene_image")
 
 # Image generation is expensive; rate-limit conservatively.
 _rate_limiter = RateLimiter(max_calls=10, window_seconds=60)
+# One image generation per request. It bills DashScope rather than watsonx, but
+# it is still spend, and one shared ceiling is easier to reason about than two.
+_budget = daily_budget.cost(1)
 router = APIRouter(
     prefix="/scene-image",
     tags=["scene-image"],
-    dependencies=[Depends(require_api_key), Depends(_rate_limiter)],
+    dependencies=[Depends(require_api_key), Depends(_rate_limiter), Depends(_budget)],
 )
 
 # Polling config for the async DashScope task.

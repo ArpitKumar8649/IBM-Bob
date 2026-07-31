@@ -22,15 +22,17 @@ from sse_starlette.sse import EventSourceResponse
 
 from app.llm import get_chat_model
 from app.orchestration.context import fence_untrusted
-from app.security import RateLimiter, require_api_key
+from app.security import RateLimiter, daily_budget, require_api_key
 
 logger = logging.getLogger("writers_room.transform")
 
 _rate_limiter = RateLimiter(max_calls=30, window_seconds=60)
+# One model call per rewrite, charged to the process-wide daily ceiling.
+_budget = daily_budget.cost(1)
 router = APIRouter(
     prefix="/transform",
     tags=["transform"],
-    dependencies=[Depends(require_api_key), Depends(_rate_limiter)],
+    dependencies=[Depends(require_api_key), Depends(_rate_limiter), Depends(_budget)],
 )
 
 TONE_PROMPTS: dict[str, str] = {

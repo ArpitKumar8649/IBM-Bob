@@ -33,15 +33,18 @@ from app.orchestration.context import (
 )
 from app.orchestration.ordering import compute_insights, order_nodes
 from app.orchestration.structured import invoke_structured
-from app.security import RateLimiter, require_api_key
+from app.security import RateLimiter, daily_budget, require_api_key
 
 logger = logging.getLogger("writers_room.analytics")
 
 _rate_limiter = RateLimiter(max_calls=15, window_seconds=60)
+# One model call per tension read (the pacing insights beside it are pure code),
+# charged to the process-wide daily ceiling.
+_budget = daily_budget.cost(1)
 router = APIRouter(
     prefix="/analytics",
     tags=["analytics"],
-    dependencies=[Depends(require_api_key), Depends(_rate_limiter)],
+    dependencies=[Depends(require_api_key), Depends(_rate_limiter), Depends(_budget)],
 )
 
 Pacing = Literal["quiet", "slow", "building", "peak", "falling"]

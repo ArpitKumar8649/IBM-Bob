@@ -513,3 +513,204 @@ def test_api_key_dependency_rejects_missing_key_when_configured(monkeypatch):
     )
     assert response.status_code != 401
     assert response.status_code != 403
+
+
+# --------------------------------------------------------------------------- #
+# Security: the shared daily model-call budget
+#
+# The unit tests below build their own small ``DailyBudget`` rather than poking
+# the process-wide one, so a ceiling of 5 can be reasoned about directly. Where a
+# charge has to age out of the window, they backdate ``_Charge.at`` instead of
+# monkeypatching ``time.monotonic`` — a 24h window cannot be slept through, and
+# reaching into the one field that represents "when" is less invasive than
+# swapping the clock out from under every other timer in the process.
+# --------------------------------------------------------------------------- #
+
+
+def test_budget_of_zero_is_disabled():
+    """0 means "no ceiling" — the free-local-model case must cost nothing."""
+    from app.security import DailyBudget
+
+    budget = DailyBudget(max_calls=0)
+    for _ in range(50):
+        budget.charge(15)  # must not raise, and must not accumulate
+    assert budget.snapshot() == {"limit": 0, "spent": 0, "remaining": 0}
+
+
+def test_budget_rejects_the_charge_that_would_cross_the_ceiling():
+    from fastapi import HTTPException
+
+    from app.security import DailyBudget
+
+    budget = DailyBudget(max_calls=5)
+    budget.charge(4)
+
+    # 4 + 2 > 5, so this is refused *before* spending — the ceiling is never
+    # crossed and then apologised for.
+    with pytest.raises(HTTPException) as exc:
+        budget.charge(2)
+    assert exc.value.status_code == 429
+    assert "budget" in exc.value.detail.lower()
+    assert int(exc.value.headers["Retry-After"]) > 0
+    assert budget.snapshot()["spent"] == 4
+
+    budget.charge(1)  # exactly to the ceiling still fits
+    assert budget.snapshot() == {"limit": 5, "spent": 5, "remaining": 0}
+
+
+def test_budget_refund_returns_capacity_to_the_next_caller():
+    """The point of charging the worst case: what wasn't spent comes back."""
+    from fastapi import HTTPException
+
+    from app.security import DailyBudget
+
+    budget = DailyBudget(max_calls=5)
+    reservation = budget.charge(5)
+    with pytest.raises(HTTPException):
+        budget.charge(1)
+
+    reservation.refund(4)
+    assert budget.snapshot()["remaining"] == 4
+    budget.charge(4)  # the next request gets the room the first one didn't use
+
+
+def test_budget_refund_cannot_exceed_what_was_charged():
+    """A route that miscomputes its refund cannot mint free capacity."""
+    from app.security import DailyBudget
+
+    budget = DailyBudget(max_calls=10)
+    reservation = budget.charge(5)
+
+    reservation.refund(500)  # absurd, and clamped to the 5 actually charged
+    reservation.refund(5)  # a second refund of an already-emptied charge
+    assert budget.snapshot() == {"limit": 10, "spent": 0, "remaining": 10}
+
+
+def test_budget_window_frees_capacity_and_a_late_refund_cannot_double_count():
+    """Eviction and refund are the two ways calls come back — never both.
+
+    A charge that ages out has already been subtracted from ``_spent``. If its
+    ``Reservation`` were refunded afterwards (a long-running request outliving
+    the window), a naive implementation would subtract the same calls a second
+    time and hand out capacity that was never returned. ``_evict`` zeroes the
+    charge to make the late refund a no-op.
+    """
+    from fastapi import HTTPException
+
+    from app.security import DailyBudget
+
+    budget = DailyBudget(max_calls=5, window_seconds=100)
+    reservation = budget.charge(5)
+    with pytest.raises(HTTPException):
+        budget.charge(1)
+
+    budget._charges[0].at -= 200  # age it out of the window
+    assert budget.snapshot()["spent"] == 0
+
+    budget.charge(5)  # capacity is back for someone else
+    reservation.refund(5)  # ...and the expired charge cannot give it away again
+    assert budget.snapshot() == {"limit": 5, "spent": 5, "remaining": 0}
+
+
+def test_budget_retry_after_counts_down_to_the_oldest_charge():
+    """``Retry-After`` is when capacity frees, not a flat "come back tomorrow"."""
+    from fastapi import HTTPException
+
+    from app.security import DailyBudget
+
+    budget = DailyBudget(max_calls=1, window_seconds=100)
+    budget.charge(1)
+    budget._charges[0].at -= 60  # 60s of the window already elapsed
+
+    with pytest.raises(HTTPException) as exc:
+        budget.charge(1)
+    retry_after = int(exc.value.headers["Retry-After"])
+    # ~40s left of a 100s window: the useful part is that it is bounded by the
+    # remaining window rather than the whole of it.
+    assert 0 < retry_after <= 42
+    assert retry_after < budget.window
+
+
+def test_debate_reservation_is_derived_from_the_revision_bound():
+    """Raising MAX_REVISIONS must raise the reservation with it, not silently under-charge."""
+    from app.orchestration.agent_graph import MAX_REVISIONS
+    from app.routes.agent import _CALLS_PER_ROUND, _MAX_DEBATE_CALLS
+
+    assert _CALLS_PER_ROUND == 5  # Architect/Reviser + four critics
+    assert _MAX_DEBATE_CALLS == _CALLS_PER_ROUND * (MAX_REVISIONS + 1)
+
+
+def test_agent_invoke_charges_one_round_when_the_draft_is_approved(monkeypatch):
+    """End to end: reserve the worst case, refund the rounds the gate didn't need."""
+    patch_chat_model(monkeypatch, _approved_debate_responses())
+    from app.main import app
+    from app.routes.agent import _CALLS_PER_ROUND, _MAX_DEBATE_CALLS
+    from app.security import daily_budget
+
+    client = TestClient(app)
+    assert client.post("/agent/invoke", json=_valid_agent_request()).status_code == 200
+    # One deliberation actually happened, so the other two rounds' worth of the
+    # reservation is back in the pot for the next writer.
+    assert daily_budget.snapshot()["spent"] == _CALLS_PER_ROUND
+    assert _MAX_DEBATE_CALLS > _CALLS_PER_ROUND  # the refund was not a no-op
+
+
+def test_agent_stream_refunds_the_rounds_it_did_not_stream(monkeypatch):
+    """The streaming path counts merged verdicts, so it refunds like /invoke."""
+    patch_chat_model(monkeypatch, _approved_debate_responses())
+    from app.main import app
+    from app.routes.agent import _CALLS_PER_ROUND
+    from app.security import daily_budget
+
+    client = TestClient(app)
+    with client.stream("POST", "/agent/stream", json=_valid_agent_request()) as response:
+        assert response.status_code == 200
+        assert "event: done" in response.read().decode()
+    assert daily_budget.snapshot()["spent"] == _CALLS_PER_ROUND
+
+
+def test_spent_budget_429s_the_debate_but_leaves_the_free_paths_open(monkeypatch):
+    """What the ceiling protects, and what it must never take down with it.
+
+    ``/voice/check`` is pure arithmetic and ``/api/model-info`` reads config, so
+    both are deliberately unbudgeted. A drained allowance has to stop the
+    spending routes without breaking the ones that were never the problem.
+    """
+    from app.main import app
+    from app.security import daily_budget
+
+    daily_budget.charge(daily_budget.max_calls)  # spend the day
+
+    client = TestClient(app)
+    response = client.post("/agent/invoke", json=_valid_agent_request())
+    assert response.status_code == 429
+    assert "budget" in response.json()["detail"].lower()
+    assert int(response.headers["Retry-After"]) > 0
+
+    assert client.get("/api/model-info").status_code == 200
+    free = client.post("/voice/check", json={"candidate_text": "Still free.", "metrics": {}})
+    assert free.status_code == 200
+
+
+def test_healthz_reports_the_budget_so_it_can_be_watched(monkeypatch):
+    """Remaining headroom should be visible before a 429 announces it."""
+    from app.main import app
+    from app.security import daily_budget
+
+    daily_budget.charge(7)
+    client = TestClient(app)
+    body = client.get("/healthz").json()
+    assert body["status"] == "ok"
+    assert body["model_calls"]["spent"] == 7
+    assert body["model_calls"]["limit"] == daily_budget.max_calls
+    assert body["model_calls"]["remaining"] == daily_budget.max_calls - 7
+
+
+def test_healthz_omits_the_budget_when_disabled(monkeypatch):
+    """No ceiling configured -> no field, rather than a misleading limit of 0."""
+    from app.main import app
+    from app.security import daily_budget
+
+    monkeypatch.setattr(daily_budget, "max_calls", 0)
+    assert "model_calls" not in TestClient(app).get("/healthz").json()
+

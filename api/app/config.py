@@ -55,6 +55,15 @@ class Settings(BaseSettings):
     # header X-API-Key: <value> — guards the watsonx budget on a public demo.
     writers_room_api_key: str = ""
 
+    # A process-wide ceiling on model calls per rolling 24 hours, shared by every
+    # spending route. The per-IP rate limiter bounds how fast one caller can go;
+    # this bounds how much the whole service can spend, which is what a token
+    # allowance actually cares about — ten IPs each politely under the per-IP
+    # limit still add up to one drained account. 0 disables it (free local
+    # models). Default 600 ≈ 40 worst-case debates plus a few hundred single-call
+    # requests: far more than a day of judging, far less than an allowance.
+    writers_room_daily_model_calls: int = 600
+
     # Reverse proxies (Render/Railway/Fly) can supply the originating client in
     # X-Forwarded-For. Keep this false for local/direct deployments so a client
     # cannot spoof an IP and bypass the demo's in-memory rate limiter.

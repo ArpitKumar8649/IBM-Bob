@@ -47,7 +47,7 @@ from app.orchestration.voice import (
     find_dialogue_for,
     metrics_from_lines,
 )
-from app.security import RateLimiter, require_api_key
+from app.security import RateLimiter, daily_budget, require_api_key
 
 logger = logging.getLogger("writers_room.voice")
 
@@ -56,6 +56,10 @@ logger = logging.getLogger("writers_room.voice")
 # would throttle the free path to protect the expensive one.
 _lock_limiter = RateLimiter(max_calls=10, window_seconds=60)
 _check_limiter = RateLimiter(max_calls=60, window_seconds=60)
+# Same split against the daily ceiling: naming a register costs one call, and
+# /voice/check is left unbudgeted rather than charged zero — the dependency list
+# is then an honest inventory of which endpoints spend money.
+_lock_budget = daily_budget.cost(1)
 router = APIRouter(prefix="/voice", tags=["voice"])
 
 # Sample sizes above the lock floor at which the fingerprint stops being a
@@ -348,7 +352,7 @@ def _character_facts(story_facts: list[dict[str, Any]]) -> str:
 @router.post(
     "/lock",
     response_model=VoiceLockResult,
-    dependencies=[Depends(require_api_key), Depends(_lock_limiter)],
+    dependencies=[Depends(require_api_key), Depends(_lock_limiter), Depends(_lock_budget)],
 )
 async def lock_voice(req: VoiceLockRequest) -> VoiceLockResult:
     """Measure a character's voice from the canvas, then ask Granite to name it."""

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from contextlib import asynccontextmanager
+from typing import Any
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,6 +23,7 @@ from app.routes import (
     transform,
     voice,
 )
+from app.security import daily_budget
 
 logging.basicConfig(
     level=logging.INFO,
@@ -68,9 +70,17 @@ app.add_middleware(
 
 
 @app.get("/healthz", tags=["health"])
-async def healthz() -> dict[str, str]:
-    """Liveness probe."""
-    return {"status": "ok", "version": __version__}
+async def healthz() -> dict[str, Any]:
+    """Liveness probe, plus today's model-call spend when a ceiling is set.
+
+    Reporting the budget here means the demo's remaining headroom can be watched
+    with the same curl the platform already uses for health, instead of being
+    discovered by a 429 mid-debate. Nothing here is sensitive: it is a count.
+    """
+    body: dict[str, Any] = {"status": "ok", "version": __version__}
+    if daily_budget.max_calls > 0:
+        body["model_calls"] = daily_budget.snapshot()
+    return body
 
 
 app.include_router(generate.router)

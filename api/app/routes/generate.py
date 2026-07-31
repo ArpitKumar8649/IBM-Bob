@@ -16,7 +16,7 @@ from app.config import settings
 from app.llm import ChatMessage, get_client
 from app.llm.granite_client import LLMError
 from app.schemas import GenerateRequest, ModelInfo
-from app.security import RateLimiter, require_api_key
+from app.security import RateLimiter, daily_budget, require_api_key
 
 logger = logging.getLogger("writers_room.generate")
 
@@ -24,6 +24,9 @@ router = APIRouter(prefix="/api", tags=["generate"])
 
 # Share the same limiter policy as the agent endpoints.
 _rate_limiter = RateLimiter(max_calls=30, window_seconds=60)
+# One model call per generation, charged to the process-wide daily ceiling.
+# /model-info is deliberately outside both guards: it calls nothing.
+_budget = daily_budget.cost(1)
 
 
 @router.get("/model-info", response_model=ModelInfo)
@@ -49,7 +52,7 @@ async def model_info() -> ModelInfo:
 
 @router.post(
     "/generate",
-    dependencies=[Depends(require_api_key), Depends(_rate_limiter)],
+    dependencies=[Depends(require_api_key), Depends(_rate_limiter), Depends(_budget)],
 )
 async def generate(req: GenerateRequest) -> EventSourceResponse:
     """Stream a Granite completion for a single prompt as Server-Sent Events.

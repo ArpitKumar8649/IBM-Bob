@@ -23,6 +23,20 @@ os.environ.pop("WRITERS_ROOM_API_KEY", None)
 import pytest  # noqa: E402
 
 
+@pytest.fixture(autouse=True)
+def _fresh_daily_budget():
+    """Give every test the full daily model-call budget.
+
+    ``daily_budget`` is one process-wide instance, so without this a long test
+    session would accumulate charges from earlier tests and eventually 429 an
+    unrelated one — a failure that would look like a bug in whatever test ran
+    last rather than in the shared counter.
+    """
+    from app.security import daily_budget
+
+    daily_budget.reset()
+
+
 @pytest.fixture
 def canvas_nodes():
     return [

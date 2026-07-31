@@ -29,16 +29,18 @@ from sse_starlette.sse import EventSourceResponse
 
 from app.llm import get_chat_model
 from app.orchestration.personas import get_persona
-from app.security import RateLimiter, require_api_key
+from app.security import RateLimiter, daily_budget, require_api_key
 
 logger = logging.getLogger("writers_room.chat")
 
 # Chat is chatty, so allow a higher rate than the heavy debate loop.
 _rate_limiter = RateLimiter(max_calls=60, window_seconds=60)
+# One model call per reply, charged to the process-wide daily ceiling.
+_budget = daily_budget.cost(1)
 router = APIRouter(
     prefix="/agent",
     tags=["chat"],
-    dependencies=[Depends(require_api_key), Depends(_rate_limiter)],
+    dependencies=[Depends(require_api_key), Depends(_rate_limiter), Depends(_budget)],
 )
 
 
