@@ -24,18 +24,23 @@ services:
     build: ./api
     container_name: writers_room_api
     environment:
-      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@db:5432/writers_room
+      # No DATABASE_URL: the API is stateless. Every row lives in Postgres via
+      # the web app's Prisma client, and the canvas graph lives in Liveblocks.
       - MODEL_BACKEND=${MODEL_BACKEND:-watsonx}
       - WATSONX_API_KEY=${WATSONX_API_KEY}
       - WATSONX_PROJECT_ID=${WATSONX_PROJECT_ID}
+      - WATSONX_URL=${WATSONX_URL:-https://us-south.ml.cloud.ibm.com}
       - WATSONX_MODEL_ID=${WATSONX_MODEL_ID:-ibm/granite-4-h-small}
       - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY}
+      # Region-specific: the host and the model ids have to agree, or a valid
+      # key still fails with InvalidApiKey.
+      - DASHSCOPE_BASE_URL=${DASHSCOPE_BASE_URL:-https://dashscope-intl.aliyuncs.com/api/v1}
+      - DASHSCOPE_IMAGE_MODEL_ID=${DASHSCOPE_IMAGE_MODEL_ID:-wan2.2-t2i-flash}
+      - DASHSCOPE_IMAGE_FALLBACK_MODEL_IDS=${DASHSCOPE_IMAGE_FALLBACK_MODEL_IDS:-wan2.2-t2i-plus,qwen-image}
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000}
+      - WRITERS_ROOM_DAILY_MODEL_CALLS=${WRITERS_ROOM_DAILY_MODEL_CALLS:-600}
     ports:
       - "8000:8000"
-    depends_on:
-      db:
-        condition: service_healthy
     restart: unless-stopped
 
   # Next.js frontend
@@ -45,11 +50,20 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@db:5432/writers_room
       - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
+      - NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}
       - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
       - NEXT_PUBLIC_LIVEBLOCKS_PUBLIC_KEY=${NEXT_PUBLIC_LIVEBLOCKS_PUBLIC_KEY}
+      # Story Bible embeddings are computed here, not in the API. Without these
+      # the app falls back to a local hash embedder — it still works, but its
+      # vectors are a different width, so facts embedded in one mode are
+      # invisible to retrieval in the other.
+      - WATSONX_API_KEY=${WATSONX_API_KEY}
+      - WATSONX_PROJECT_ID=${WATSONX_PROJECT_ID}
+      - WATSONX_URL=${WATSONX_URL:-https://us-south.ml.cloud.ibm.com}
+      - WATSONX_EMBED_MODEL_ID=${WATSONX_EMBED_MODEL_ID:-ibm/granite-embedding-278m-multilingual}
     ports:
       - "3000:3000"
     depends_on:

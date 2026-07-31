@@ -68,7 +68,14 @@ export default function ProductionPanel({
       const result = await generateSceneImage(scene.image_prompt);
       if (result.status === "success" && result.image_url) {
         setSceneImages((prev) => ({ ...prev, [scene.scene_number]: result.image_url! }));
-        toast("Scene image generated!", "success");
+        // Name the model: the backend falls back to another one when the
+        // primary is out of quota, and that changes the look of the render.
+        toast(
+          result.model_id
+            ? `Scene image generated with ${result.model_id}`
+            : "Scene image generated!",
+          "success"
+        );
       } else if (result.status === "no_key") {
         setSceneImages((prev) => ({
           ...prev,

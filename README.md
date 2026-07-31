@@ -269,7 +269,13 @@ The app runs at `http://localhost:3000`.
 
 ## 🔑 Environment Variables
 
-### `api/.env` (backend)
+Two files, and the first one surprises people: the backend reads the **repo-root**
+`.env` (`api/app/config.py` resolves it from the repo root, not from `api/`), while
+the frontend reads `web/.env.local`. Copy `.env.example` to `.env` to start.
+Both are gitignored. Nothing below is required for a local run except a model
+backend — every other feature degrades to a stated, visible fallback.
+
+### `.env` — repo root (backend)
 | Variable | Description |
 |---|---|
 | `MODEL_BACKEND` | `watsonx` (demo) or `ollama` (local dev) |
@@ -278,23 +284,29 @@ The app runs at `http://localhost:3000`.
 | `WATSONX_URL` | watsonx endpoint (default `https://us-south.ml.cloud.ibm.com`) |
 | `WATSONX_MODEL_ID` | Granite model (default `ibm/granite-4-h-small`) |
 | `OLLAMA_URL` / `OLLAMA_MODEL_ID` | local Ollama Granite (dev) |
-| `CORS_ORIGINS` | comma-separated allowed origins |
-| `WRITERS_ROOM_API_KEY` | optional shared API key for the demo backend |
-| `WRITERS_ROOM_DAILY_MODEL_CALLS` | process-wide ceiling on model calls per rolling 24h (default `600`, `0` disables). Reported by `GET /healthz` |
+| `API_HOST` / `API_PORT` | bind address (defaults `0.0.0.0` / `8000`) |
+| `CORS_ORIGINS` | comma-separated allowed origins, or `*` |
+| `WRITERS_ROOM_API_KEY` | optional shared API key for the demo backend. ⚠️ The web app does **not** send `X-API-Key`, so setting this makes every AI call from the UI return 401 — use it only for an API-only deployment |
+| `WRITERS_ROOM_DAILY_MODEL_CALLS` | process-wide ceiling on model calls per rolling 24h (default `600`, `0` disables). Returns 429 with `Retry-After`; reported by `GET /healthz` |
+| `TRUST_PROXY_HEADERS` | read the client IP from `X-Forwarded-For` (default `false`). Only turn on behind a proxy that sets it, or a caller can spoof past the rate limiter |
 | `DASHSCOPE_API_KEY` | optional — enables in-app scene-image rendering (else the cinematic prompt is shown, copyable) |
+| `DASHSCOPE_BASE_URL` | region host (default `https://dashscope-intl.aliyuncs.com/api/v1`). Must match the key's region or a valid key still fails `InvalidApiKey` |
+| `DASHSCOPE_IMAGE_MODEL_ID` | primary image model (default `wan2.2-t2i-flash`) |
+| `DASHSCOPE_IMAGE_FALLBACK_MODEL_IDS` | comma-separated models tried in order when the primary is out of quota or throttled (default `wan2.2-t2i-plus,qwen-image`). Free quota is per model, so this is what keeps rendering after the first allowance runs out |
 
 ### `web/.env.local` (frontend)
 | Variable | Description |
 |---|---|
-| `DATABASE_URL` | PostgreSQL connection string (Neon) |
+| `DATABASE_URL` | PostgreSQL connection string (Neon). Required — auth and the Story Bible are Prisma-backed |
 | `NEXTAUTH_URL` | app URL (default `http://localhost:3000`) |
-| `NEXTAUTH_SECRET` | session secret (`openssl rand -base64 32`) |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth (optional) |
-| `NEXT_PUBLIC_API_BASE_URL` | backend URL the browser calls |
-| `NEXT_PUBLIC_LIVEBLOCKS_PUBLIC_KEY` | Liveblocks public key |
+| `NEXTAUTH_SECRET` | session secret (`openssl rand -base64 32`). Required for sign-in; the middleware reads the JWT with it |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth (optional — email/password works without it) |
+| `NEXT_PUBLIC_API_BASE_URL` | backend URL the browser calls. Every AI feature 404s or falls over without it in production |
+| `NEXT_PUBLIC_LIVEBLOCKS_PUBLIC_KEY` | Liveblocks public key for the live canvas. Falls back to a shared dev key if unset |
 | `NEXT_PUBLIC_SITE_URL` | canonical site URL for OG/social metadata |
-| `WATSONX_API_KEY` / `WATSONX_PROJECT_ID` | **server-side only** — Story Bible embeddings (`lib/embeddings.ts`); no `NEXT_PUBLIC_` prefix, so the key never reaches the browser. Leave blank to use the deterministic local embedder |
-| `WATSONX_URL` / `WATSONX_EMBED_MODEL_ID` | watsonx endpoint + embedding model (default `ibm/granite-embedding-107m-multilingual`) |
+| `WATSONX_API_KEY` / `WATSONX_PROJECT_ID` | **server-side only** — Story Bible embeddings (`lib/embeddings.ts`); no `NEXT_PUBLIC_` prefix, so the key never reaches the browser |
+| `WATSONX_EMBED_MODEL_ID` | embedding model, e.g. `ibm/granite-embedding-278m-multilingual`. ⚠️ All three of these must be set or embeddings silently use a local 384-dim hash instead of watsonx's 768-dim vectors — and similarity between the two widths is always 0, so facts embedded in one mode are invisible in the other. Pick one and re-seed if you switch |
+| `WATSONX_URL` | watsonx endpoint for embeddings (default `https://us-south.ml.cloud.ibm.com`) |
 
 ---
 

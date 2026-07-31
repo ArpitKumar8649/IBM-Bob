@@ -590,6 +590,14 @@ Replicate"* — and **Render in-app**. Rendering needs `DASHSCOPE_API_KEY` set i
 `.env`; without it you get a friendly amber note saying so, and the prompt above
 it is still the deliverable. The concept-art step never blocks you.
 
+The success toast names the model that rendered — *"Scene image generated with
+wan2.2-t2i-flash"*. If it names a different one, the primary model's free quota
+is spent and the fallback chain in `DASHSCOPE_IMAGE_FALLBACK_MODEL_IDS` took
+over; the renders keep coming, in a slightly different house style. Only quota,
+throttling and unreachable-model failures fall through. A bad key or a prompt
+the content filter rejects stops on the first model, because the rest would
+refuse it identically.
+
 ---
 
 ## Step 18 — Director's Cut
@@ -688,6 +696,7 @@ The honest list. Every one of these is verified in the code, not guessed.
 | Lock says `low` confidence | 40–79 words of dialogue | Add more lines; 80+ gets you `medium` |
 | Drift says *not judged* | The line is too short to measure | Test at least a dozen words |
 | **Render in-app** shows an amber note | No `DASHSCOPE_API_KEY` | Use **Copy prompt** — it's the real deliverable |
+| Image error says *all N models are unavailable* | Every model in the chain is out of quota | Add another id to `DASHSCOPE_IMAGE_FALLBACK_MODEL_IDS`, or top up the DashScope account |
 | Story Bible shows duplicate facts | The room re-seeded on an empty canvas | Delete them with the trash icon |
 | Debate ignores a character's voice | No lock exists for that character | Lock it in **Voice Lock** first |
 

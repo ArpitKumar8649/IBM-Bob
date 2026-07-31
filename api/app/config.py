@@ -43,7 +43,17 @@ class Settings(BaseSettings):
     # -intl host only, and that region serves the wan2.2 model family — the
     # older `wanx2.1-*` ids return "Model not exist" there.
     dashscope_api_key: str = ""
-    dashscope_image_model_id: str = "wan2.2-t2i-flash"  # or wan2.2-t2i-plus for higher quality
+    dashscope_image_model_id: str = "wan2.2-t2i-flash"  # cheapest and fastest of the family
+    # Tried in order when the primary model is out of quota, throttled, or not
+    # reachable for this account. DashScope grants free quota *per model*, so a
+    # second model keeps the feature alive once the first one's allowance is
+    # spent. Both defaults were verified live on the -intl host (July 2026):
+    # they accept the same request shape and return the same
+    # `output.results[0].url`, so they are drop-in replacements. `qwen-image` is
+    # a different family from `wan2.2-*`, which is the point — a Wan-wide
+    # allowance or outage does not take it with it. Comma-separated; blank
+    # disables fallback entirely.
+    dashscope_image_fallback_model_ids: str = "wan2.2-t2i-plus,qwen-image"
     dashscope_base_url: str = "https://dashscope-intl.aliyuncs.com/api/v1"
 
     # ---- API server ----
@@ -80,6 +90,24 @@ class Settings(BaseSettings):
     def active_model_id(self) -> str:
         """The model id for the currently selected backend."""
         return self.watsonx_model_id if self.model_backend == "watsonx" else self.ollama_model_id
+
+    @property
+    def dashscope_image_model_chain(self) -> list[str]:
+        """Image models to try in order: the primary, then each configured fallback.
+
+        Deduplicated with order preserved, so naming the primary again among the
+        fallbacks cannot make one request pay for the same model twice.
+        """
+        candidates = [
+            self.dashscope_image_model_id,
+            *self.dashscope_image_fallback_model_ids.split(","),
+        ]
+        chain: list[str] = []
+        for candidate in candidates:
+            model_id = candidate.strip()
+            if model_id and model_id not in chain:
+                chain.append(model_id)
+        return chain
 
 
 @lru_cache

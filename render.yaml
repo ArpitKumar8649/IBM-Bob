@@ -14,12 +14,31 @@ services:
         sync: false
       - key: WATSONX_PROJECT_ID
         sync: false
+      - key: WATSONX_URL
+        value: https://us-south.ml.cloud.ibm.com
       - key: WATSONX_MODEL_ID
         value: ibm/granite-4-h-small
       - key: DASHSCOPE_API_KEY
         sync: false
+      # Region-specific and must agree with the key: an international
+      # (Singapore) key only authenticates against the -intl host, which serves
+      # the wan2.2 family. The fallback list is walked in order when the primary
+      # model is out of quota.
+      - key: DASHSCOPE_BASE_URL
+        value: https://dashscope-intl.aliyuncs.com/api/v1
+      - key: DASHSCOPE_IMAGE_MODEL_ID
+        value: wan2.2-t2i-flash
+      - key: DASHSCOPE_IMAGE_FALLBACK_MODEL_IDS
+        value: wan2.2-t2i-plus,qwen-image
       - key: CORS_ORIGINS
         sync: false
       - key: WRITERS_ROOM_API_KEY
         sync: false
+      - key: WRITERS_ROOM_DAILY_MODEL_CALLS
+        value: "600"
+      # Render terminates TLS in front of the app and sets X-Forwarded-For, so
+      # the per-IP rate limiter should read the real client rather than the
+      # proxy's address.
+      - key: TRUST_PROXY_HEADERS
+        value: "true"
     autoDeploy: true

@@ -83,19 +83,23 @@ export async function generateSceneBreakdown(
 }
 
 // --------------------------------------------------------------------------- //
-// AI scene images (DashScope / Qwen Wan2.1)
+// AI scene images (DashScope — Wan / Qwen)
 // --------------------------------------------------------------------------- //
 
 export interface SceneImageResult {
   image_url: string | null;
   status: "success" | "failed" | "no_key";
   message: string | null;
+  /** Which model rendered it — or, on failure, the last one tried. */
+  model_id?: string | null;
 }
 
 /**
- * Render a cinematic image prompt with DashScope's Wan2.1 text-to-image model.
+ * Render a cinematic image prompt with DashScope's text-to-image models.
  * Returns the image URL on success, or a status explaining why it couldn't
- * (no key configured, generation failed, etc.).
+ * (no key configured, generation failed, etc.). The backend walks a fallback
+ * chain of models, so a render can come from a different model than the
+ * configured primary — `model_id` says which one.
  */
 export async function generateSceneImage(
   prompt: string,
