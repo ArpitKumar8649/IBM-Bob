@@ -1,0 +1,9 @@
+# Vercel builds from an upload of this directory, not from git, so the exclusions
+# have to be spelled out here — when this file exists the CLI stops consulting
+# .gitignore. Dependencies and the build output are produced on Vercel; shipping
+# a local copy would only slow the upload down. .env* stays local: production
+# values live in the project's environment settings.
+node_modules
+.next
+.vercel
+.env*

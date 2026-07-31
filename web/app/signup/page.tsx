@@ -7,6 +7,7 @@ import { signIn } from "next-auth/react";
 import { motion, AnimatePresence, useMotionValue, useTransform } from "framer-motion";
 import { Mail, Lock, Eye, EyeOff, ArrowRight, User } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { googleAuthEnabled } from "@/lib/features";
 
 /**
  * Sign-up page — matches the sign-in card's rose glass design with 3D tilt
@@ -367,29 +368,33 @@ export default function SignUpPage() {
                   </div>
                 </motion.button>
 
-                {/* Divider */}
-                <div className="relative mt-2 mb-5 flex items-center">
-                  <div className="flex-grow border-t border-rose-400/10" />
-                  <span className="mx-3 text-xs text-rose-100/40">or</span>
-                  <div className="flex-grow border-t border-rose-400/10" />
-                </div>
+                {googleAuthEnabled && (
+                  <>
+                    {/* Divider */}
+                    <div className="relative mt-2 mb-5 flex items-center">
+                      <div className="flex-grow border-t border-rose-400/10" />
+                      <span className="mx-3 text-xs text-rose-100/40">or</span>
+                      <div className="flex-grow border-t border-rose-400/10" />
+                    </div>
 
-                {/* Google Sign Up */}
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  type="button"
-                  onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
-                  className="w-full relative group/google"
-                >
-                  <div className="absolute inset-0 bg-rose-400/5 rounded-lg blur opacity-0 group-hover/google:opacity-70 transition-opacity duration-300" />
-                  <div className="relative overflow-hidden bg-rose-400/5 text-rose-50 font-medium h-10 rounded-lg border border-rose-400/15 hover:border-rose-400/30 transition-all duration-300 flex items-center justify-center gap-2">
-                    <GoogleIcon />
-                    <span className="text-rose-100/80 group-hover/google:text-rose-50 transition-colors text-xs">
-                      Sign up with Google
-                    </span>
-                  </div>
-                </motion.button>
+                    {/* Google Sign Up */}
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      type="button"
+                      onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
+                      className="w-full relative group/google"
+                    >
+                      <div className="absolute inset-0 bg-rose-400/5 rounded-lg blur opacity-0 group-hover/google:opacity-70 transition-opacity duration-300" />
+                      <div className="relative overflow-hidden bg-rose-400/5 text-rose-50 font-medium h-10 rounded-lg border border-rose-400/15 hover:border-rose-400/30 transition-all duration-300 flex items-center justify-center gap-2">
+                        <GoogleIcon />
+                        <span className="text-rose-100/80 group-hover/google:text-rose-50 transition-colors text-xs">
+                          Sign up with Google
+                        </span>
+                      </div>
+                    </motion.button>
+                  </>
+                )}
 
                 {/* Sign in link */}
                 <motion.p

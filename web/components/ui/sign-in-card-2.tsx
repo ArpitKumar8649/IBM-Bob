@@ -7,6 +7,7 @@ import { signIn } from "next-auth/react";
 import { motion, AnimatePresence, useMotionValue, useTransform } from "framer-motion";
 import { Mail, Lock, Eye, EyeOff, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { googleAuthEnabled } from "@/lib/features";
 
 /**
  * Glassy sign-in card with a 3D mouse-tilt effect and traveling light beams,
@@ -427,42 +428,46 @@ export function Component() {
                   </div>
                 </motion.button>
 
-                {/* Divider */}
-                <div className="relative mt-2 mb-5 flex items-center">
-                  <div className="flex-grow border-t border-rose-400/10" />
-                  <motion.span
-                    className="mx-3 text-xs text-rose-100/40"
-                    initial={{ opacity: 0.7 }}
-                    animate={{ opacity: [0.7, 0.9, 0.7] }}
-                    transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-                  >
-                    or
-                  </motion.span>
-                  <div className="flex-grow border-t border-rose-400/10" />
-                </div>
+                {googleAuthEnabled && (
+                  <>
+                    {/* Divider */}
+                    <div className="relative mt-2 mb-5 flex items-center">
+                      <div className="flex-grow border-t border-rose-400/10" />
+                      <motion.span
+                        className="mx-3 text-xs text-rose-100/40"
+                        initial={{ opacity: 0.7 }}
+                        animate={{ opacity: [0.7, 0.9, 0.7] }}
+                        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                      >
+                        or
+                      </motion.span>
+                      <div className="flex-grow border-t border-rose-400/10" />
+                    </div>
 
-                {/* Google Sign In */}
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  type="button"
-                  onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
-                  className="w-full relative group/google"
-                >
-                  <div className="absolute inset-0 bg-rose-400/5 rounded-lg blur opacity-0 group-hover/google:opacity-70 transition-opacity duration-300" />
-                  <div className="relative overflow-hidden bg-rose-400/5 text-rose-50 font-medium h-10 rounded-lg border border-rose-400/15 hover:border-rose-400/30 transition-all duration-300 flex items-center justify-center gap-2">
-                    <GoogleIcon />
-                    <span className="text-rose-100/80 group-hover/google:text-rose-50 transition-colors text-xs">
-                      Sign in with Google
-                    </span>
-                    <motion.div
-                      className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/5 to-white/0"
-                      initial={{ x: "-100%" }}
-                      whileHover={{ x: "100%" }}
-                      transition={{ duration: 1, ease: "easeInOut" }}
-                    />
-                  </div>
-                </motion.button>
+                    {/* Google Sign In */}
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      type="button"
+                      onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
+                      className="w-full relative group/google"
+                    >
+                      <div className="absolute inset-0 bg-rose-400/5 rounded-lg blur opacity-0 group-hover/google:opacity-70 transition-opacity duration-300" />
+                      <div className="relative overflow-hidden bg-rose-400/5 text-rose-50 font-medium h-10 rounded-lg border border-rose-400/15 hover:border-rose-400/30 transition-all duration-300 flex items-center justify-center gap-2">
+                        <GoogleIcon />
+                        <span className="text-rose-100/80 group-hover/google:text-rose-50 transition-colors text-xs">
+                          Sign in with Google
+                        </span>
+                        <motion.div
+                          className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/5 to-white/0"
+                          initial={{ x: "-100%" }}
+                          whileHover={{ x: "100%" }}
+                          transition={{ duration: 1, ease: "easeInOut" }}
+                        />
+                      </div>
+                    </motion.button>
+                  </>
+                )}
 
                 {/* Sign up link */}
                 <motion.p
