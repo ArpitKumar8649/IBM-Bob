@@ -102,7 +102,7 @@ const GUIDED_SEEDS: Record<
     [
       { title: "The Briefing", content: "In a neon-soaked safehouse, a fixer lays out the impossible data-heist.", type: "plot_beat" },
       { title: "The Crew", content: "A washed-out netrunner is the only one who can crack the black-ice.", type: "character" },
-      { title: "Neo-Tokyo Spire", content: "The target: a corporate spire whose90th floor doesn't officially exist.", type: "location" },
+      { title: "Neo-Tokyo Spire", content: "The target: a corporate spire whose 90th floor doesn't officially exist.", type: "location" },
     ],
     ["causes", "features"],
     [
