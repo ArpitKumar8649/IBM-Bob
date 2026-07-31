@@ -19,7 +19,11 @@ see [Verified numbers](#verified-numbers) at the end.
    `curl localhost:8000/api/model-info` → `ibm/granite-4-h-small`.
 2. **Warm the model.** Run one throwaway debate before recording — the first
    watsonx call of a session is the slow one. A warm round takes ~11s.
-3. **Open `/room/demo`** and let the guided seed load (Mira, The Awakening, The Offer).
+3. **Click "Try the demo — no sign-up" once**, then open `/room/demo` and let the
+   guided seed load (Mira, The Awakening, The Offer). That first click sets the
+   `demo_mode` cookie, which is what makes "Try the live canvas" open the room
+   directly on camera at 0:19 — without the cookie, `/room/demo` bounces to
+   `/signin`. The cookie lasts 24 hours, so prep it the same day you record.
 4. **Paste the dialogue in.** The seeded beats are prose with no dialogue, so a voice
    lock would refuse them — a thin sample is refused by design, and that's a bad
    thing to discover on camera. Click into each beat's body text and replace it
@@ -42,7 +46,7 @@ see [Verified numbers](#verified-numbers) at the end.
 
 ## 0:19 – 0:33 · The canvas
 
-[DO: click "Try the demo — no sign-up", open the demo room]
+[DO: click "Try the live canvas" — it opens `/room/demo` in one hop]
 
 > This is a story canvas. Beats, characters, locations — connected by what they do
 > to each other. This beat causes that one. So the room argues about your story,
@@ -53,10 +57,10 @@ see [Verified numbers](#verified-numbers) at the end.
 [DO: click the ✦ button on "The Offer"]
 
 > Watch what happens when I ask the room to continue this beat. The architect
-> drafts the next moment. Four specialists read it in parallel — continuity,
-> character, structure, dialogue. They score it, and they can reject it. Two
-> rejections send it to a reviser before I ever see it. A real state machine, not
-> four prompts in a trench coat.
+> drafts the next moment. Four specialists read it in parallel — character, world,
+> continuity, tension. They score it, and they can reject it. Two rejections send
+> it to a reviser before I ever see it. A real state machine, not four prompts in
+> a trench coat.
 
 ## 1:00 – 1:20 · Accept, and the scorecard
 
@@ -68,11 +72,11 @@ see [Verified numbers](#verified-numbers) at the end.
 
 ## 1:20 – 1:36 · Story Bible
 
-[DO: open Story Bible, show a fact and its provenance]
+[DO: open Story Bible, point at the two seeded facts]
 
-> Everything I accept lands in the Story Bible — canon, with the beat it came from
-> attached. Retrieval is semantic, so when the room writes scene forty it's reading
-> what I established in scene two.
+> This is the Story Bible — the canon I decide on, and every agent reads it. Each
+> fact is embedded, so when the room writes scene forty it retrieves what I
+> established in scene two.
 
 ## 1:36 – 2:42 · Voice Lock — the centerpiece
 
@@ -107,7 +111,7 @@ see [Verified numbers](#verified-numbers) at the end.
 
 ## 2:42 – 3:03 · Coverage
 
-[DO: click Coverage, let it run]
+[DO: click Coverage, then "Generate Coverage", let it run]
 
 > Studios pay readers to write coverage — the memo that decides whether a script
 > gets made. This does it in about seven seconds, in the real format: logline,
@@ -116,7 +120,7 @@ see [Verified numbers](#verified-numbers) at the end.
 
 ## 3:03 – 3:20 · Pacing
 
-[DO: click Pacing, show the tension curve]
+[DO: click Pacing, then "Analyse pacing", show the tension curve]
 
 > This is the tension curve — every beat scored for pressure, plotted in order. The
 > flat stretches are where an audience checks their phone. You see the sag before a
@@ -124,7 +128,7 @@ see [Verified numbers](#verified-numbers) at the end.
 
 ## 3:20 – 3:38 · Director's Cut
 
-[DO: click Director's Cut, scroll the assembled script]
+[DO: click Director's Cut, point at the four export formats]
 
 > When the story's ready, Director's Cut assembles the beats in causal order into
 > one screenplay I can export. Next to it: a pitch deck generator and a production
